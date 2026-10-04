@@ -1,0 +1,493 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+
+const BUSINESS_ID = "3b4fc147-7ea2-495f-a64e-878dfdabc158";
+
+type Customer = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+};
+
+type CreditTransaction = {
+  id: string;
+  type: "CREDIT" | "PAYMENT";
+  amount: number;
+  note: string | null;
+  createdAt: string;
+};
+
+export default function CustomerDetailsPage() {
+  const params = useParams();
+  const customerId = params.customerId as string;
+
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState<
+    CreditTransaction[]
+  >([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditNote, setCreditNote] = useState("");
+  const [creditLoading, setCreditLoading] = useState(false);
+  const [creditMessage, setCreditMessage] = useState("");
+  const [creditError, setCreditError] = useState("");
+
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentError, setPaymentError] = useState("");
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const customerResponse = await fetch(
+  `/api/customers?businessId=${BUSINESS_ID}`
+);
+
+const customerData = await customerResponse.json();
+
+if (!customerResponse.ok) {
+  throw new Error(
+    customerData.error || "Failed to load customers"
+  );
+}
+
+const foundCustomer = customerData.customers.find(
+  (item: Customer) => item.id === customerId
+);
+
+if (!foundCustomer) {
+  throw new Error("Customer not found");
+}
+
+setCustomer(foundCustomer);
+
+      const creditResponse = await fetch(
+        `/api/credit?businessId=${BUSINESS_ID}&customerId=${customerId}`
+      );
+
+      const creditData = await creditResponse.json();
+
+      if (!creditResponse.ok) {
+        throw new Error(
+          creditData.error || "Failed to load credit information"
+        );
+      }
+
+      setBalance(creditData.balance);
+      setTransactions(creditData.transactions);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load customer"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (customerId) {
+      loadData();
+    }
+  }, [customerId]);
+
+  async function handleCredit(event: FormEvent) {
+    event.preventDefault();
+
+    setCreditMessage("");
+    setCreditError("");
+
+    const amount = Number(creditAmount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setCreditError("Credit amount must be greater than 0");
+      return;
+    }
+
+    try {
+      setCreditLoading(true);
+
+      const response = await fetch("/api/credit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          businessId: BUSINESS_ID,
+          customerId,
+          type: "CREDIT",
+          amount,
+          note: creditNote.trim() || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Failed to record credit"
+        );
+      }
+
+      setCreditAmount("");
+      setCreditNote("");
+      setCreditMessage("Credit added successfully");
+
+      await loadData();
+    } catch (err) {
+      setCreditError(
+        err instanceof Error
+          ? err.message
+          : "Failed to record credit"
+      );
+    } finally {
+      setCreditLoading(false);
+    }
+  }
+
+  async function handlePayment(event: FormEvent) {
+    event.preventDefault();
+
+    setPaymentMessage("");
+    setPaymentError("");
+
+    const amount = Number(paymentAmount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPaymentError("Payment amount must be greater than 0");
+      return;
+    }
+
+    if (amount > balance) {
+      setPaymentError(
+        "Payment cannot be greater than the outstanding balance"
+      );
+      return;
+    }
+
+    try {
+      setPaymentLoading(true);
+
+      const response = await fetch("/api/credit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          businessId: BUSINESS_ID,
+          customerId,
+          type: "PAYMENT",
+          amount,
+          note: paymentNote.trim() || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Failed to record payment"
+        );
+      }
+
+      setPaymentAmount("");
+      setPaymentNote("");
+      setPaymentMessage("Payment recorded successfully");
+
+      await loadData();
+    } catch (err) {
+      setPaymentError(
+        err instanceof Error
+          ? err.message
+          : "Failed to record payment"
+      );
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen p-6">
+        <div className="mx-auto max-w-5xl">
+          <p className="text-gray-400">
+            Loading customer...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !customer) {
+    return (
+      <main className="min-h-screen p-6">
+        <div className="mx-auto max-w-5xl">
+          <p className="mb-4 text-red-400">
+            {error || "Customer not found"}
+          </p>
+
+          <Link
+            href="/customers"
+            className="font-medium text-blue-400 underline"
+          >
+            Back to Customers
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen p-6">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6">
+          <Link
+            href="/customers"
+            className="text-sm font-medium text-blue-400 underline underline-offset-4"
+          >
+            ← Back to Customers
+          </Link>
+        </div>
+
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white">
+            {customer.name}
+          </h1>
+
+          <div className="mt-3 space-y-1 text-gray-400">
+            <p>Phone: {customer.phone || "—"}</p>
+            <p>Email: {customer.email || "—"}</p>
+          </div>
+        </div>
+
+        <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
+          <p className="text-sm font-medium text-gray-600">
+            Outstanding Balance
+          </p>
+
+          <p className="mt-2 text-3xl font-bold">
+            ₹{balance.toFixed(2)}
+          </p>
+        </section>
+
+        <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
+          <h2 className="mb-4 text-xl font-semibold">
+            Record Credit
+          </h2>
+
+          <form
+            onSubmit={handleCredit}
+            className="grid gap-4 md:grid-cols-2"
+          >
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Amount
+              </label>
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={creditAmount}
+                onChange={(event) =>
+                  setCreditAmount(event.target.value)
+                }
+                placeholder="Credit amount"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Note
+              </label>
+
+              <input
+                type="text"
+                value={creditNote}
+                onChange={(event) =>
+                  setCreditNote(event.target.value)
+                }
+                placeholder="Reason or note"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                disabled={creditLoading}
+                className="rounded-md bg-black px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {creditLoading
+                  ? "Adding..."
+                  : "Add Credit"}
+              </button>
+            </div>
+          </form>
+
+          {creditMessage && (
+            <p className="mt-4 text-green-600">
+              {creditMessage}
+            </p>
+          )}
+
+          {creditError && (
+            <p className="mt-4 text-red-600">
+              {creditError}
+            </p>
+          )}
+        </section>
+
+        <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
+          <h2 className="mb-4 text-xl font-semibold">
+            Record Payment
+          </h2>
+
+          <form
+            onSubmit={handlePayment}
+            className="grid gap-4 md:grid-cols-2"
+          >
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Amount
+              </label>
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(event) =>
+                  setPaymentAmount(event.target.value)
+                }
+                placeholder="Payment amount"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Note
+              </label>
+
+              <input
+                type="text"
+                value={paymentNote}
+                onChange={(event) =>
+                  setPaymentNote(event.target.value)
+                }
+                placeholder="Payment note"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                disabled={paymentLoading}
+                className="rounded-md bg-black px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {paymentLoading
+                  ? "Recording..."
+                  : "Record Payment"}
+              </button>
+            </div>
+          </form>
+
+          {paymentMessage && (
+            <p className="mt-4 text-green-600">
+              {paymentMessage}
+            </p>
+          )}
+
+          {paymentError && (
+            <p className="mt-4 text-red-600">
+              {paymentError}
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
+          <h2 className="mb-4 text-xl font-semibold">
+            Credit History
+          </h2>
+
+          {transactions.length === 0 ? (
+            <p className="text-gray-600">
+              No credit transactions found.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left">
+                    <th className="px-4 py-3 font-semibold">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      Type
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      Amount
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      Note
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {transactions.map((transaction) => (
+                    <tr
+                      key={transaction.id}
+                      className="border-b border-gray-200 last:border-0"
+                    >
+                      <td className="px-4 py-3 text-gray-700">
+                        {new Date(
+                          transaction.createdAt
+                        ).toLocaleString()}
+                      </td>
+
+                      <td className="px-4 py-3 font-medium">
+                        {transaction.type}
+                      </td>
+
+                      <td
+  className={`px-4 py-3 font-medium ${
+    transaction.type === "CREDIT"
+      ? "text-red-600"
+      : "text-green-600"
+  }`}
+>
+  {transaction.type === "CREDIT" ? "+" : "-"}₹
+  {Number(transaction.amount).toFixed(2)}
+</td>
+
+                      <td className="px-4 py-3 text-gray-700">
+                        {transaction.note || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}

@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum InventoryMovementType {
+  PURCHASE
+  SALE
+  ADJUSTMENT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum PurchaseInvoiceStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+enum CreditTransactionType {
+  CREDIT
+  PAYMENT
+}
+
+enum SalePaymentMode {
+  CASH
+  UPI
+  CREDIT
+}
+
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  categories         Category[]
+  products           Product[]
+  inventoryMovements InventoryMovement[]
+  customers          Customer[]
+  sales              Sale[]
+  suppliers          Supplier[]
+  purchaseOrders     PurchaseOrder[]
+  purchaseInvoices   PurchaseInvoice[]
+  creditTransactions CreditTransaction[]
+
+  @@map("businesses")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  email      String   @unique
+  password   String
+  role       Role     @default(STAFF)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("users")
+}
+
+model Category {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@index([businessId])
+  @@map("categories")
+}
+
+model Product {
+  id                String   @id @default(uuid())
+  businessId        String
+  categoryId        String?
+  name              String
+  sku               String?
+  purchasePrice     Decimal
+  sellingPrice      Decimal
+  stockQuantity     Decimal
+  lowStockThreshold Decimal
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  business           Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  inventoryMovements InventoryMovement[]
+  saleItems          SaleItem[]
+  purchaseItems      PurchaseItem[]
+
+  @@unique([businessId, sku])
+  @@index([businessId])
+  @@index([categoryId])
+  @@index([sku])
+  @@map("products")
+}
+
+model InventoryMovement {
+  id          String                @id @default(uuid())
+  businessId  String
+  productId   String
+  type        InventoryMovementType
+  quantity    Decimal
+  referenceId String?
+  note        String?
+  createdAt   DateTime              @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([productId])
+  @@index([productId, createdAt])
+  @@map("inventory_movements")
+}
+
+model Customer {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  phone      String?
+  email      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sales              Sale[]
+  creditTransactions CreditTransaction[]
+
+  @@index([businessId])
+  @@index([phone])
+  @@map("customers")
+}
+
+model Sale {
+  id          String          @id @default(uuid())
+  businessId  String
+  customerId  String?
+  paymentMode SalePaymentMode @default(CASH)
+  totalAmount Decimal
+  createdAt   DateTime        @default(now())
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items    SaleItem[]
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  productId String
+  quantity  Decimal
+  unitPrice Decimal
+  total     Decimal
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model Supplier {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  purchaseOrders   PurchaseOrder[]
+  purchaseInvoices PurchaseInvoice[]
+
+  @@index([businessId])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id         String              @id @default(uuid())
+  businessId String
+  supplierId String
+  status     PurchaseOrderStatus @default(DRAFT)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  business Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  supplier Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items    PurchaseItem[]
+
+  @@index([businessId])
+  @@index([supplierId])
+  @@index([createdAt])
+  @@map("purchase_orders")
+}
+
+model PurchaseInvoice {
+  id            String                @id @default(uuid())
+  businessId    String
+  supplierId    String
+  invoiceNumber String?
+  invoiceDate   DateTime?
+  totalAmount   Decimal
+  status        PurchaseInvoiceStatus @default(DRAFT)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  business Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  supplier Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items    PurchaseItem[]
+
+  @@index([businessId])
+  @@index([supplierId])
+  @@index([invoiceDate])
+  @@map("purchase_invoices")
+}
+
+model PurchaseItem {
+  id        String  @id @default(uuid())
+  productId String
+  quantity  Decimal
+  unitPrice Decimal
+  total     Decimal
+  orderId   String?
+  invoiceId String?
+
+  product Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  order   PurchaseOrder?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  invoice PurchaseInvoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([orderId])
+  @@index([invoiceId])
+  @@map("purchase_items")
+}
+
+model CreditTransaction {
+  id         String                @id @default(uuid())
+  businessId String
+  customerId String
+  type       CreditTransactionType
+  amount     Decimal
+  note       String?
+  createdAt  DateTime              @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([customerId, createdAt])
+  @@map("credit_transactions")
+}

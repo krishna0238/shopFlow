@@ -1,26 +1,247 @@
 @import "tailwindcss";
 
+/*
+ * SHOPFLOW GLASS
+ *
+ * One permanent visual language.
+ *
+ * ShopFlow does NOT provide its own light/dark switch.
+ * The glass material automatically follows the
+ * user's existing system/browser appearance preference.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #edf0f4;
+  --foreground: #17191e;
+
+  --glass: rgba(255, 255, 255, 0.42);
+  --glass-strong: rgba(255, 255, 255, 0.58);
+  --glass-soft: rgba(255, 255, 255, 0.28);
+
+  --glass-border: rgba(255, 255, 255, 0.68);
+  --glass-border-subtle: rgba(20, 24, 32, 0.08);
+
+  --text-primary: #17191e;
+  --text-secondary: rgba(23, 25, 30, 0.64);
+  --text-muted: rgba(23, 25, 30, 0.42);
+
+  --accent: #d7a800;
+  --accent-strong: #bd9000;
+  --accent-soft: rgba(215, 168, 0, 0.12);
+
+  --danger: #dc3d3d;
+  --success: #168a50;
+  --info: #1478a8;
+
+  --shadow-glass:
+    0 10px 32px rgba(30, 35, 45, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+
+  --shadow-glass-hover:
+    0 16px 42px rgba(30, 35, 45, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
+/*
+ * Automatic dark appearance.
+ *
+ * No class.
+ * No switch.
+ * No button.
+ *
+ * If the browser/system is using dark appearance,
+ * these values automatically become active.
+ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #090b0f;
+    --foreground: #f1f3f5;
+
+    --glass: rgba(255, 255, 255, 0.055);
+    --glass-strong: rgba(255, 255, 255, 0.075);
+    --glass-soft: rgba(255, 255, 255, 0.035);
+
+    --glass-border: rgba(255, 255, 255, 0.105);
+    --glass-border-subtle: rgba(255, 255, 255, 0.07);
+
+    --text-primary: #f1f3f5;
+    --text-secondary: rgba(241, 243, 245, 0.66);
+    --text-muted: rgba(241, 243, 245, 0.42);
+
+    --accent: #f2c51b;
+    --accent-strong: #f5c915;
+    --accent-soft: rgba(242, 197, 27, 0.12);
+
+    --danger: #ff7777;
+    --success: #5ee09a;
+    --info: #5bc0f5;
+
+    --shadow-glass:
+      0 12px 36px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+    --shadow-glass-hover:
+      0 18px 48px rgba(0, 0, 0, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  min-height: 100%;
+  background: var(--background);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+
+  color: var(--text-primary);
+
+  font-family:
+    var(--font-geist-sans),
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  background:
+    radial-gradient(
+      circle at 8% 5%,
+      rgba(255, 255, 255, 0.9),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 92% 12%,
+      rgba(255, 255, 255, 0.72),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 50% 100%,
+      rgba(255, 255, 255, 0.5),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      #e9edf2 0%,
+      #f3f5f7 48%,
+      #e7ebf0 100%
+    );
+
+  background-attachment: fixed;
+}
+
+/*
+ * Dark ambient background.
+ */
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background:
+      radial-gradient(
+        circle at 8% 5%,
+        rgba(255, 255, 255, 0.035),
+        transparent 30%
+      ),
+      radial-gradient(
+        circle at 92% 12%,
+        rgba(255, 255, 255, 0.025),
+        transparent 28%
+      ),
+      radial-gradient(
+        circle at 50% 100%,
+        rgba(255, 255, 255, 0.018),
+        transparent 35%
+      ),
+      linear-gradient(
+        135deg,
+        #07090c 0%,
+        #0c0f14 48%,
+        #080a0e 100%
+      );
+
+    background-attachment: fixed;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+/*
+ * Shared ShopFlow glass materials.
+ */
+
+.shopflow-glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+
+  backdrop-filter: blur(24px) saturate(135%);
+  -webkit-backdrop-filter: blur(24px) saturate(135%);
+
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.shopflow-glass-strong {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.shopflow-glass-soft {
+  background: var(--glass-soft);
+  border: 1px solid var(--glass-border-subtle);
+  box-shadow: var(--shadow-glass);
+
+  backdrop-filter: blur(20px) saturate(130%);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.shopflow-glass:hover,
+.shopflow-glass-strong:hover {
+  box-shadow: var(--shadow-glass-hover);
+}
+
+.shopflow-text-primary {
+  color: var(--text-primary);
+}
+
+.shopflow-text-secondary {
+  color: var(--text-secondary);
+}
+
+.shopflow-text-muted {
+  color: var(--text-muted);
 }
