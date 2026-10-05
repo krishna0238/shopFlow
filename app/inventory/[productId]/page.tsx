@@ -69,7 +69,9 @@ export default function ProductDetailsPage({
     sellingPrice: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deactivating, setDeactivating] = useState(false);
   const [error, setError] = useState("");
+  const [deactivateError, setDeactivateError] = useState("");
 
   useEffect(() => {
     params.then(({ productId: id }) => {
@@ -154,6 +156,54 @@ export default function ProductDetailsPage({
     loadProductDetails();
   }, [productId]);
 
+  async function handleDeactivateProduct() {
+    if (!product) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Deactivate "${product.name}"? It will no longer appear in the active inventory list. Historical sales, purchases, and stock records will be preserved.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeactivating(true);
+      setDeactivateError("");
+
+      const response = await fetch("/api/products", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          businessId: BUSINESS_ID,
+          productId: product.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Failed to deactivate product"
+        );
+      }
+
+      window.location.href = "/inventory";
+    } catch (err) {
+      setDeactivateError(
+        err instanceof Error
+          ? err.message
+          : "Failed to deactivate product"
+      );
+    } finally {
+      setDeactivating(false);
+    }
+  }
+
   if (loading) {
     return (
       <main style={{ padding: "2rem" }}>
@@ -217,8 +267,51 @@ export default function ProductDetailsPage({
           </p>
         </div>
 
-        <Link href="/inventory">Back to Inventory</Link>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <Link href="/inventory">Back to Inventory</Link>
+
+          {product.isActive && (
+            <button
+              type="button"
+              onClick={handleDeactivateProduct}
+              disabled={deactivating}
+              style={{
+                padding: "0.6rem 1rem",
+                border: "1px solid #b91c1c",
+                borderRadius: "6px",
+                backgroundColor: "#fff",
+                color: "#b91c1c",
+                cursor: deactivating
+                  ? "not-allowed"
+                  : "pointer",
+                opacity: deactivating ? 0.6 : 1,
+              }}
+            >
+              {deactivating
+                ? "Deactivating..."
+                : "Deactivate Product"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {deactivateError && (
+        <p
+          style={{
+            marginTop: "1rem",
+            color: "#b91c1c",
+          }}
+        >
+          {deactivateError}
+        </p>
+      )}
 
       <section
         style={{
