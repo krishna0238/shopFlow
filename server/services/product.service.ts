@@ -5,11 +5,18 @@ import type {
 } from "@/server/validation/product.validation";
 
 export class ProductService {
-  static async getProducts(businessId: string) {
+  static async getProducts(
+    businessId: string,
+    includeInactive = false
+  ) {
     return prisma.product.findMany({
       where: {
         businessId,
-        isActive: true,
+        ...(includeInactive
+          ? {}
+          : {
+              isActive: true,
+            }),
       },
       include: {
         category: true,

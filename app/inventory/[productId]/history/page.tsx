@@ -12,6 +12,7 @@ type Product = {
   sellingPrice: string | number;
   stockQuantity: string | number;
   lowStockThreshold: string | number;
+  isActive: boolean;
 };
 
 type InventoryMovement = {
@@ -52,7 +53,7 @@ export default function InventoryHistoryPage({
       setError("");
 
       const productsResponse = await fetch(
-        `/api/products?businessId=${BUSINESS_ID}`
+        `/api/products?businessId=${BUSINESS_ID}&includeInactive=true`
       );
 
       const productsData = await productsResponse.json();
@@ -141,6 +142,13 @@ export default function InventoryHistoryPage({
     if (newStock < 0) {
       setAdjustmentError(
         "This adjustment would make stock negative."
+      );
+      return;
+    }
+
+    if (!product.isActive) {
+      setAdjustmentError(
+        "Inactive products cannot be adjusted."
       );
       return;
     }
@@ -291,6 +299,19 @@ export default function InventoryHistoryPage({
           </p>
         </div>
 
+        {!product.isActive && (
+          <div className="mb-8 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-900">
+            <p className="font-semibold">
+              This product is inactive.
+            </p>
+
+            <p className="mt-1 text-sm">
+              This page is available for historical reference.
+              Inactive products cannot be adjusted.
+            </p>
+          </div>
+        )}
+
         <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
           <div className="grid gap-6 md:grid-cols-4">
             <div>
@@ -335,85 +356,87 @@ export default function InventoryHistoryPage({
           </div>
         </section>
 
-        <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-          <div className="mb-5">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Adjust Stock
-            </h2>
+        {product.isActive && (
+          <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
+            <div className="mb-5">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Adjust Stock
+              </h2>
 
-            <p className="mt-1 text-sm text-gray-500">
-              Record a physical stock correction or other
-              inventory adjustment.
-            </p>
-          </div>
-
-          <form
-            onSubmit={handleAdjustment}
-            className="grid gap-4 md:grid-cols-3"
-          >
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">
-                Quantity
-              </label>
-
-              <input
-                type="number"
-                step="1"
-                value={adjustmentQuantity}
-                onChange={(event) =>
-                  setAdjustmentQuantity(event.target.value)
-                }
-                placeholder="Example: +2 or -2"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400"
-              />
-
-              <p className="mt-1 text-xs text-gray-500">
-                Use a positive number to increase stock or a
-                negative number to decrease it.
+              <p className="mt-1 text-sm text-gray-500">
+                Record a physical stock correction or other
+                inventory adjustment.
               </p>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-900">
-                Reason
-              </label>
+            <form
+              onSubmit={handleAdjustment}
+              className="grid gap-4 md:grid-cols-3"
+            >
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-900">
+                  Quantity
+                </label>
 
-              <input
-                type="text"
-                value={adjustmentNote}
-                onChange={(event) =>
-                  setAdjustmentNote(event.target.value)
-                }
-                placeholder="Example: Physical stock count"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400"
-              />
-            </div>
+                <input
+                  type="number"
+                  step="1"
+                  value={adjustmentQuantity}
+                  onChange={(event) =>
+                    setAdjustmentQuantity(event.target.value)
+                  }
+                  placeholder="Example: +2 or -2"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400"
+                />
 
-            <div className="flex items-end">
-              <button
-                type="submit"
-                disabled={adjusting}
-                className="w-full rounded-md bg-black px-5 py-2 font-medium text-white disabled:opacity-50"
-              >
-                {adjusting
-                  ? "Adjusting..."
-                  : "Adjust Stock"}
-              </button>
-            </div>
-          </form>
+                <p className="mt-1 text-xs text-gray-500">
+                  Use a positive number to increase stock or a
+                  negative number to decrease it.
+                </p>
+              </div>
 
-          {adjustmentError && (
-            <p className="mt-4 text-sm text-red-600">
-              {adjustmentError}
-            </p>
-          )}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-900">
+                  Reason
+                </label>
 
-          {adjustmentSuccess && (
-            <p className="mt-4 text-sm font-medium text-green-600">
-              {adjustmentSuccess}
-            </p>
-          )}
-        </section>
+                <input
+                  type="text"
+                  value={adjustmentNote}
+                  onChange={(event) =>
+                    setAdjustmentNote(event.target.value)
+                  }
+                  placeholder="Example: Physical stock count"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-400"
+                />
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={adjusting}
+                  className="w-full rounded-md bg-black px-5 py-2 font-medium text-white disabled:opacity-50"
+                >
+                  {adjusting
+                    ? "Adjusting..."
+                    : "Adjust Stock"}
+                </button>
+              </div>
+            </form>
+
+            {adjustmentError && (
+              <p className="mt-4 text-sm text-red-600">
+                {adjustmentError}
+              </p>
+            )}
+
+            {adjustmentSuccess && (
+              <p className="mt-4 text-sm font-medium text-green-600">
+                {adjustmentSuccess}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
           <div className="mb-4">
