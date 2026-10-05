@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { ProductService } from "@/server/services/product.service";
-import { createProductSchema } from "@/server/validation/product.validation";
+import {
+  createProductSchema,
+  deactivateProductSchema,
+} from "@/server/validation/product.validation";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -75,6 +78,53 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "Failed to create product",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+
+    const result = deactivateProductSchema.safeParse(body);
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid product deactivation data",
+          details: result.error.issues,
+        },
+        { status: 400 }
+      );
+    }
+
+    const product = await ProductService.deactivateProduct(
+      result.data
+    );
+
+    return NextResponse.json({
+      product,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Active product not found"
+    ) {
+      return NextResponse.json(
+        {
+          error: error.message,
+        },
+        { status: 404 }
+      );
+    }
+
+    console.error("Failed to deactivate product:", error);
+
+    return NextResponse.json(
+      {
+        error: "Failed to deactivate product",
       },
       { status: 500 }
     );

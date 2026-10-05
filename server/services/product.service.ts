@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import type { CreateProductInput } from "@/server/validation/product.validation";
+import type {
+  CreateProductInput,
+  DeactivateProductInput,
+} from "@/server/validation/product.validation";
 
 export class ProductService {
   static async getProducts(businessId: string) {
@@ -62,6 +65,31 @@ export class ProductService {
       }
 
       return product;
+    });
+  }
+
+  static async deactivateProduct(
+    input: DeactivateProductInput
+  ) {
+    const product = await prisma.product.findFirst({
+      where: {
+        id: input.productId,
+        businessId: input.businessId,
+        isActive: true,
+      },
+    });
+
+    if (!product) {
+      throw new Error("Active product not found");
+    }
+
+    return prisma.product.update({
+      where: {
+        id: product.id,
+      },
+      data: {
+        isActive: false,
+      },
     });
   }
 }

@@ -11,4 +11,12 @@ export const createProductSchema = z.object({
   lowStockThreshold: z.number().nonnegative().default(0),
 });
 
+export const deactivateProductSchema = z.object({
+  businessId: z.string().uuid(),
+  productId: z.string().uuid(),
+});
+
 export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type DeactivateProductInput = z.infer<
+  typeof deactivateProductSchema
+>;
