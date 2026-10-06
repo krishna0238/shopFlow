@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { AuditService } from "@/server/services/audit.service";
 import type { CreateSaleInput } from "@/server/validation/sale.validation";
 
 export class SaleService {
@@ -143,6 +144,22 @@ export class SaleService {
           },
         });
       }
+
+      await AuditService.log(
+        {
+          businessId: input.businessId,
+          action: "SALE_CREATED",
+          entityType: "Sale",
+          entityId: sale.id,
+          details: {
+            paymentMode: input.paymentMode,
+            totalAmount,
+            customerId: input.customerId ?? null,
+            itemCount: input.items.length,
+          },
+        },
+        tx
+      );
 
       return {
         sale,
