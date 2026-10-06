@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { AuditService } from "@/server/services/audit.service";
 
 export class PurchaseInvoiceService {
   static async getPurchaseInvoices(businessId: string) {
@@ -127,7 +128,7 @@ export class PurchaseInvoiceService {
         });
       }
 
-      return tx.purchaseInvoice.update({
+      const confirmedInvoice = await tx.purchaseInvoice.update({
         where: {
           id: invoice.id,
         },
@@ -143,6 +144,24 @@ export class PurchaseInvoiceService {
           },
         },
       });
+
+      await AuditService.log(
+        {
+          businessId,
+          action: "PURCHASE_INVOICE_CONFIRMED",
+          entityType: "PurchaseInvoice",
+          entityId: invoice.id,
+          details: {
+            supplierId: invoice.supplierId,
+            invoiceNumber: invoice.invoiceNumber ?? null,
+            totalAmount: Number(invoice.totalAmount),
+            itemCount: invoice.items.length,
+          },
+        },
+        tx
+      );
+
+      return confirmedInvoice;
     });
   }
 }
