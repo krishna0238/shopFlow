@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { AuditService } from "@/server/services/audit.service";
 
 const updatePurchaseOrderStatusSchema = z.object({
   businessId: z.string().uuid(),
@@ -20,22 +21,116 @@ export async function POST(request: NextRequest) {
     const input =
       updatePurchaseOrderStatusSchema.parse(body);
 
-    const purchaseOrder =
-      await prisma.purchaseOrder.findFirst({
-        where: {
-          id: input.purchaseOrderId,
-          businessId: input.businessId,
-        },
-        select: {
-          id: true,
-          status: true,
-        },
-      });
+    const result = await prisma.$transaction(async (tx) => {
+      const purchaseOrder =
+        await tx.purchaseOrder.findFirst({
+          where: {
+            id: input.purchaseOrderId,
+            businessId: input.businessId,
+          },
+          select: {
+            id: true,
+            businessId: true,
+            supplierId: true,
+            status: true,
+          },
+        });
 
-    if (!purchaseOrder) {
+      if (!purchaseOrder) {
+        throw new Error("Purchase order not found");
+      }
+
+      if (
+        purchaseOrder.status ===
+        input.status
+      ) {
+        throw new Error(
+          `Purchase order is already ${input.status}`
+        );
+      }
+
+      const allowedTransitions: Record<
+        string,
+        string[]
+      > = {
+        DRAFT: [
+          "ORDERED",
+          "CANCELLED",
+        ],
+        ORDERED: [
+          "RECEIVED",
+          "CANCELLED",
+        ],
+        RECEIVED: [],
+        CANCELLED: [],
+      };
+
+      const allowedNextStatuses =
+        allowedTransitions[
+          purchaseOrder.status
+        ] ?? [];
+
+      if (
+        !allowedNextStatuses.includes(
+          input.status
+        )
+      ) {
+        throw new Error(
+          `Cannot change purchase order status from ${purchaseOrder.status} to ${input.status}`
+        );
+      }
+
+      const previousStatus =
+        purchaseOrder.status;
+
+      const updatedPurchaseOrder =
+        await tx.purchaseOrder.update({
+          where: {
+            id: purchaseOrder.id,
+          },
+          data: {
+            status: input.status,
+          },
+          select: {
+            id: true,
+            businessId: true,
+            supplierId: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+      await AuditService.log(
+        {
+          businessId: input.businessId,
+          action: "PURCHASE_ORDER_STATUS_CHANGED",
+          entityType: "PurchaseOrder",
+          entityId: purchaseOrder.id,
+          details: {
+            supplierId: purchaseOrder.supplierId,
+            previousStatus,
+            newStatus: input.status,
+          },
+        },
+        tx
+      );
+
+      return updatedPurchaseOrder;
+    });
+
+    return NextResponse.json({
+      purchaseOrder: result,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message ===
+        "Purchase order not found"
+    ) {
       return NextResponse.json(
         {
-          error: "Purchase order not found",
+          error: error.message,
         },
         {
           status: 404,
@@ -44,48 +139,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      purchaseOrder.status ===
-      input.status
-    ) {
-      return NextResponse.json(
-        {
-          error: `Purchase order is already ${input.status}`,
-        },
-        {
-          status: 409,
-        }
-      );
-    }
-
-    const allowedTransitions: Record<
-      string,
-      string[]
-    > = {
-      DRAFT: [
-        "ORDERED",
-        "CANCELLED",
-      ],
-      ORDERED: [
-        "RECEIVED",
-        "CANCELLED",
-      ],
-      RECEIVED: [],
-      CANCELLED: [],
-    };
-
-    const allowedNextStatuses =
-      allowedTransitions[
-        purchaseOrder.status
-      ] ?? [];
-
-    if (
-      !allowedNextStatuses.includes(
-        input.status
+      error instanceof Error &&
+      (
+        error.message.startsWith(
+          "Purchase order is already "
+        ) ||
+        error.message.startsWith(
+          "Cannot change purchase order status"
+        )
       )
     ) {
       return NextResponse.json(
         {
-          error: `Cannot change purchase order status from ${purchaseOrder.status} to ${input.status}`,
+          error: error.message,
         },
         {
           status: 409,
@@ -93,29 +159,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updatedPurchaseOrder =
-      await prisma.purchaseOrder.update({
-        where: {
-          id: purchaseOrder.id,
-        },
-        data: {
-          status: input.status,
-        },
-        select: {
-          id: true,
-          businessId: true,
-          supplierId: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-
-    return NextResponse.json({
-      purchaseOrder:
-        updatedPurchaseOrder,
-    });
-  } catch (error) {
     console.error(
       "Failed to update purchase order status:",
       error
