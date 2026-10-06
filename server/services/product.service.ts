@@ -72,6 +72,25 @@ export class ProductService {
         });
       }
 
+      await AuditService.log(
+        {
+          businessId: input.businessId,
+          action: "PRODUCT_CREATED",
+          entityType: "Product",
+          entityId: product.id,
+          details: {
+            productName: product.name,
+            sku: product.sku ?? null,
+            categoryId: product.categoryId ?? null,
+            purchasePrice: input.purchasePrice,
+            sellingPrice: input.sellingPrice,
+            initialStockQuantity: input.stockQuantity,
+            lowStockThreshold: input.lowStockThreshold,
+          },
+        },
+        tx
+      );
+
       return product;
     });
   }
