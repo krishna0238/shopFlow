@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { AuditService } from "@/server/services/audit.service";
 import type {
   CreateProductInput,
   DeactivateProductInput,
@@ -78,25 +79,43 @@ export class ProductService {
   static async deactivateProduct(
     input: DeactivateProductInput
   ) {
-    const product = await prisma.product.findFirst({
-      where: {
-        id: input.productId,
-        businessId: input.businessId,
-        isActive: true,
-      },
-    });
+    return prisma.$transaction(async (tx) => {
+      const product = await tx.product.findFirst({
+        where: {
+          id: input.productId,
+          businessId: input.businessId,
+          isActive: true,
+        },
+      });
 
-    if (!product) {
-      throw new Error("Active product not found");
-    }
+      if (!product) {
+        throw new Error("Active product not found");
+      }
 
-    return prisma.product.update({
-      where: {
-        id: product.id,
-      },
-      data: {
-        isActive: false,
-      },
+      const updatedProduct = await tx.product.update({
+        where: {
+          id: product.id,
+        },
+        data: {
+          isActive: false,
+        },
+      });
+
+      await AuditService.log(
+        {
+          businessId: input.businessId,
+          action: "PRODUCT_DEACTIVATED",
+          entityType: "Product",
+          entityId: product.id,
+          details: {
+            productName: product.name,
+            sku: product.sku,
+          },
+        },
+        tx
+      );
+
+      return updatedProduct;
     });
   }
 }

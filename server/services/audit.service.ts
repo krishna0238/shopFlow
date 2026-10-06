@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { PrismaClient } from "@/app/generated/prisma/client";
 
 type JsonValue =
   | string
@@ -14,6 +15,8 @@ type JsonObject = {
   [key: string]: JsonValue;
 };
 
+type AuditDatabase = Pick<PrismaClient, "auditLog">;
+
 export type CreateAuditLogInput = {
   businessId: string;
   userId?: string;
@@ -24,8 +27,11 @@ export type CreateAuditLogInput = {
 };
 
 export class AuditService {
-  static async log(input: CreateAuditLogInput) {
-    return prisma.auditLog.create({
+  static async log(
+    input: CreateAuditLogInput,
+    database: AuditDatabase = prisma
+  ) {
+    return database.auditLog.create({
       data: {
         businessId: input.businessId,
         userId: input.userId,
