@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { AuditService } from "@/server/services/audit.service";
 
 export class InventoryService {
   static async getProductMovements(
@@ -35,8 +36,10 @@ export class InventoryService {
         throw new Error("Product not found");
       }
 
+      const previousStock = Number(product.stockQuantity);
+
       const newStockQuantity =
-        Number(product.stockQuantity) + quantity;
+        previousStock + quantity;
 
       if (newStockQuantity < 0) {
         throw new Error("Stock quantity cannot become negative");
@@ -60,6 +63,23 @@ export class InventoryService {
           note,
         },
       });
+
+      await AuditService.log(
+        {
+          businessId,
+          action: "INVENTORY_ADJUSTED",
+          entityType: "Product",
+          entityId: product.id,
+          details: {
+            productName: product.name,
+            quantity,
+            previousStock,
+            newStock: newStockQuantity,
+            note: note ?? null,
+          },
+        },
+        tx
+      );
 
       return {
         product: updatedProduct,
