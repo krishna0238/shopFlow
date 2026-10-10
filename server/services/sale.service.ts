@@ -22,7 +22,10 @@ export class SaleService {
     });
   }
 
-  static async createSale(input: CreateSaleInput) {
+  static async createSale(
+    businessId: string,
+    input: CreateSaleInput
+  ) {
     return prisma.$transaction(async (tx) => {
       if (input.paymentMode === "CREDIT" && !input.customerId) {
         throw new Error(
@@ -34,7 +37,7 @@ export class SaleService {
         const customer = await tx.customer.findFirst({
           where: {
             id: input.customerId,
-            businessId: input.businessId,
+            businessId,
           },
         });
 
@@ -51,7 +54,7 @@ export class SaleService {
         const product = await tx.product.findFirst({
           where: {
             id: item.productId,
-            businessId: input.businessId,
+            businessId,
             isActive: true,
           },
         });
@@ -68,8 +71,7 @@ export class SaleService {
           );
         }
 
-        const itemTotal =
-          item.quantity * item.unitPrice;
+        const itemTotal = item.quantity * item.unitPrice;
 
         totalAmount += itemTotal;
 
@@ -83,7 +85,7 @@ export class SaleService {
 
       const sale = await tx.sale.create({
         data: {
-          businessId: input.businessId,
+          businessId,
           customerId: input.customerId,
           paymentMode: input.paymentMode,
           totalAmount,
@@ -94,8 +96,7 @@ export class SaleService {
 
       for (const item of saleItemsData) {
         const newStockQuantity =
-          Number(item.product.stockQuantity) -
-          item.quantity;
+          Number(item.product.stockQuantity) - item.quantity;
 
         await tx.product.update({
           where: {
@@ -121,7 +122,7 @@ export class SaleService {
 
         await tx.inventoryMovement.create({
           data: {
-            businessId: input.businessId,
+            businessId,
             productId: item.product.id,
             type: "SALE",
             quantity: -item.quantity,
@@ -136,7 +137,7 @@ export class SaleService {
       if (input.paymentMode === "CREDIT") {
         await tx.creditTransaction.create({
           data: {
-            businessId: input.businessId,
+            businessId,
             customerId: input.customerId!,
             type: "CREDIT",
             amount: totalAmount,
@@ -147,7 +148,7 @@ export class SaleService {
 
       await AuditService.log(
         {
-          businessId: input.businessId,
+          businessId,
           action: "SALE_CREATED",
           entityType: "Sale",
           entityId: sale.id,

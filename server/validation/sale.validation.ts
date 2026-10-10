@@ -7,7 +7,6 @@ export const createSaleItemSchema = z.object({
 });
 
 export const createSaleSchema = z.object({
-  businessId: z.string().uuid(),
   customerId: z.string().uuid().optional(),
   paymentMode: z.enum(["CASH", "UPI", "CREDIT"]).default("CASH"),
   items: z.array(createSaleItemSchema).min(1),
