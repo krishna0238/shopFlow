@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
+import { SessionService } from "@/server/services/session.service";
 import { AuditService } from "@/server/services/audit.service";
-import type { RegisterInput } from "@/server/validation/auth.validation";
+import type {
+  LoginInput,
+  RegisterInput,
+} from "@/server/validation/auth.validation";
 
 export class AuthService {
   static async register(input: RegisterInput) {
@@ -76,5 +80,56 @@ export class AuthService {
         },
       };
     });
+  }
+
+  static async login(input: LoginInput) {
+    const user = await prisma.user.findUnique({
+      where: {
+        email: input.email,
+      },
+      include: {
+        business: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error("Invalid email or password");
+    }
+
+    const passwordIsValid = await verifyPassword(
+      input.password,
+      user.passwordHash
+    );
+
+    if (!passwordIsValid) {
+      throw new Error("Invalid email or password");
+    }
+
+    const { token } = await SessionService.createSession(user.id);
+
+    await AuditService.log({
+      businessId: user.businessId,
+      userId: user.id,
+      action: "USER_LOGIN",
+      entityType: "User",
+      entityId: user.id,
+      details: {
+        email: user.email,
+      },
+    });
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      business: {
+        id: user.business.id,
+        name: user.business.name,
+      },
+    };
   }
 }
