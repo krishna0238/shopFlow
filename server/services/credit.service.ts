@@ -81,13 +81,14 @@ export class CreditService {
   }
 
   static async createTransaction(
+    businessId: string,
     input: CreateCreditTransactionInput
   ) {
     return prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findFirst({
         where: {
           id: input.customerId,
-          businessId: input.businessId,
+          businessId,
         },
       });
 
@@ -98,7 +99,7 @@ export class CreditService {
       const previousBalance =
         await this.calculateCustomerBalance(
           tx,
-          input.businessId,
+          businessId,
           input.customerId
         );
 
@@ -114,7 +115,7 @@ export class CreditService {
       const transaction =
         await tx.creditTransaction.create({
           data: {
-            businessId: input.businessId,
+            businessId,
             customerId: input.customerId,
             type: input.type,
             amount: input.amount,
@@ -134,7 +135,7 @@ export class CreditService {
 
       await AuditService.log(
         {
-          businessId: input.businessId,
+          businessId,
           action,
           entityType: "CreditTransaction",
           entityId: transaction.id,
