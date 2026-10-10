@@ -1,23 +1,30 @@
+
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const user = await getCurrentUser();
 
-    const businessId = searchParams.get("businessId");
-    const productId = searchParams.get("productId");
-
-    if (!businessId || !productId) {
+    if (!user) {
       return NextResponse.json(
-        {
-          error: "businessId and productId are required",
-        },
-        {
-          status: 400,
-        }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
+
+    const { searchParams } = new URL(request.url);
+    const productId = searchParams.get("productId");
+
+    if (!productId) {
+      return NextResponse.json(
+        { error: "productId is required" },
+        { status: 400 }
+      );
+    }
+
+    const businessId = user.businessId;
 
     const product = await prisma.product.findFirst({
       where: {
@@ -34,12 +41,8 @@ export async function GET(request: NextRequest) {
 
     if (!product) {
       return NextResponse.json(
-        {
-          error: "Product not found",
-        },
-        {
-          status: 404,
-        }
+        { error: "Product not found" },
+        { status: 404 }
       );
     }
 
@@ -98,9 +101,7 @@ export async function GET(request: NextRequest) {
       }
 
       const invoice = item.invoice;
-
-      const date =
-        invoice.invoiceDate ?? invoice.createdAt;
+      const date = invoice.invoiceDate ?? invoice.createdAt;
 
       purchaseHistory.push({
         id: item.id,
@@ -149,12 +150,8 @@ export async function GET(request: NextRequest) {
     console.error("Failed to load product price history:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to load product price history",
-      },
-      {
-        status: 500,
-      }
+      { error: "Failed to load product price history" },
+      { status: 500 }
     );
   }
 }
