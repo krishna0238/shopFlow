@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+import { getCurrentUser } from "@/lib/auth";
 import { InventoryService } from "@/server/services/inventory.service";
 
 const adjustStockSchema = z.object({
-  businessId: z.string().uuid(),
   productId: z.string().uuid(),
   quantity: z.number(),
   note: z.string().trim().optional(),
@@ -11,6 +12,15 @@ const adjustStockSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
     const result = adjustStockSchema.safeParse(body);
@@ -19,13 +29,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: "Invalid stock adjustment data",
+          details: result.error.flatten(),
         },
         { status: 400 }
       );
     }
 
     const movement = await InventoryService.adjustStock(
-      result.data.businessId,
+      user.businessId,
       result.data.productId,
       result.data.quantity,
       result.data.note

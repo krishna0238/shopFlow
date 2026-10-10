@@ -1,32 +1,38 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { InventoryService } from "@/server/services/inventory.service";
 import { z } from "zod";
 
 const querySchema = z.object({
-  businessId: z.string().uuid(),
   productId: z.string().uuid(),
 });
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
-  const result = querySchema.safeParse({
-    businessId: searchParams.get("businessId"),
-    productId: searchParams.get("productId"),
-  });
-
-  if (!result.success) {
-    return NextResponse.json(
-      {
-        error: "Invalid businessId or productId",
-      },
-      { status: 400 }
-    );
-  }
-
   try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+
+    const result = querySchema.safeParse({
+      productId: searchParams.get("productId"),
+    });
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Invalid productId" },
+        { status: 400 }
+      );
+    }
+
     const movements = await InventoryService.getProductMovements(
-      result.data.businessId,
+      user.businessId,
       result.data.productId
     );
 
