@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 export const createCategorySchema = z.object({
-  businessId: z.string().uuid(),
-  name: z.string().trim().min(1),
+  name: z.string().trim().min(1, "Category name is required"),
 });
 
 export type CreateCategoryInput = z.infer<

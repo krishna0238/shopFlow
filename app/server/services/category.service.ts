@@ -3,10 +3,13 @@ import { AuditService } from "@/server/services/audit.service";
 import type { CreateCategoryInput } from "../validation/category.validation";
 
 export class CategoryService {
-  static async createCategory(input: CreateCategoryInput) {
+  static async createCategory(
+    businessId: string,
+    input: CreateCategoryInput
+  ) {
     const existingCategory = await prisma.category.findFirst({
       where: {
-        businessId: input.businessId,
+        businessId,
         name: input.name,
       },
     });
@@ -18,14 +21,14 @@ export class CategoryService {
     return prisma.$transaction(async (tx) => {
       const category = await tx.category.create({
         data: {
-          businessId: input.businessId,
+          businessId,
           name: input.name,
         },
       });
 
       await AuditService.log(
         {
-          businessId: input.businessId,
+          businessId,
           action: "CATEGORY_CREATED",
           entityType: "Category",
           entityId: category.id,
