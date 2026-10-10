@@ -1,41 +1,32 @@
+
 import { NextResponse } from "next/server";
+
+import { getCurrentUser } from "@/lib/auth";
 import { CustomerService } from "@/server/services/customer.service";
 import { z } from "zod";
 
 const createCustomerSchema = z.object({
-  businessId: z.string().uuid(),
   name: z.string().trim().min(1),
   phone: z.string().trim().min(1).optional(),
   email: z.string().trim().email().optional(),
 });
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
-  const businessId = searchParams.get("businessId");
-
-  if (!businessId) {
-    return NextResponse.json(
-      { error: "businessId is required" },
-      { status: 400 }
-    );
-  }
-
-  const businessIdValidation = z.string().uuid().safeParse(businessId);
-
-  if (!businessIdValidation.success) {
-    return NextResponse.json(
-      { error: "Invalid businessId" },
-      { status: 400 }
-    );
-  }
-
+export async function GET() {
   try {
-    const customers = await CustomerService.getCustomers(businessId);
+    const user = await getCurrentUser();
 
-    return NextResponse.json({
-      customers,
-    });
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    const customers = await CustomerService.getCustomers(
+      user.businessId
+    );
+
+    return NextResponse.json({ customers });
   } catch (error) {
     console.error("Failed to fetch customers:", error);
 
@@ -48,8 +39,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const user = await getCurrentUser();
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
     const result = createCustomerSchema.safeParse(body);
 
     if (!result.success) {
@@ -63,18 +62,13 @@ export async function POST(request: Request) {
     }
 
     const customer = await CustomerService.createCustomer(
-      result.data.businessId,
+      user.businessId,
       result.data.name,
       result.data.phone,
       result.data.email
     );
 
-    return NextResponse.json(
-      {
-        customer,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ customer }, { status: 201 });
   } catch (error) {
     console.error("Failed to create customer:", error);
 
