@@ -1,33 +1,30 @@
 import { NextResponse } from "next/server";
+
+import { getCurrentUser } from "@/lib/auth";
 import { SupplierService } from "@/server/services/supplier.service";
 import { createSupplierSchema } from "@/server/validation/supplier.validation";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const businessId = searchParams.get("businessId");
-
-  if (!businessId) {
-    return NextResponse.json(
-      {
-        error: "businessId is required",
-      },
-      { status: 400 }
-    );
-  }
-
+export async function GET() {
   try {
-    const suppliers = await SupplierService.getSuppliers(businessId);
+    const user = await getCurrentUser();
 
-    return NextResponse.json({
-      suppliers,
-    });
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    const suppliers = await SupplierService.getSuppliers(
+      user.businessId
+    );
+
+    return NextResponse.json({ suppliers });
   } catch (error) {
     console.error("Failed to fetch suppliers:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to fetch suppliers",
-      },
+      { error: "Failed to fetch suppliers" },
       { status: 500 }
     );
   }
@@ -35,9 +32,27 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
-    const result = createSupplierSchema.safeParse(body);
+    // The business ID comes from the authenticated session,
+    // not from client-submitted request data.
+    const { businessId: _ignoredBusinessId, ...supplierData } =
+      body && typeof body === "object" && !Array.isArray(body)
+        ? body
+        : {};
+
+    const result = createSupplierSchema
+      .omit({ businessId: true })
+      .safeParse(supplierData);
 
     if (!result.success) {
       return NextResponse.json(
@@ -50,26 +65,19 @@ export async function POST(request: Request) {
     }
 
     const supplier = await SupplierService.createSupplier(
-      result.data.businessId,
+      user.businessId,
       result.data.name,
       result.data.phone,
       result.data.email,
       result.data.address
     );
 
-    return NextResponse.json(
-      {
-        supplier,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ supplier }, { status: 201 });
   } catch (error) {
     console.error("Failed to create supplier:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to create supplier",
-      },
+      { error: "Failed to create supplier" },
       { status: 500 }
     );
   }
