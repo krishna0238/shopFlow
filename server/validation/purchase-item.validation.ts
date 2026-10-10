@@ -1,8 +1,8 @@
+
 import { z } from "zod";
 
 export const createPurchaseItemSchema = z
   .object({
-    businessId: z.string().uuid(),
     purchaseOrderId: z.string().uuid().optional(),
     purchaseInvoiceId: z.string().uuid().optional(),
     productId: z.string().uuid(),

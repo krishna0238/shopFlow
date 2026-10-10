@@ -1,34 +1,38 @@
+
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { PurchaseItemService } from "@/server/services/purchase-item.service";
 import { createPurchaseItemSchema } from "@/server/validation/purchase-item.validation";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
-  const businessId = searchParams.get("businessId");
-  const purchaseOrderId = searchParams.get("purchaseOrderId");
-
-  if (!businessId || !purchaseOrderId) {
-    return NextResponse.json(
-      {
-        error:
-          "businessId and purchaseOrderId are required",
-      },
-      { status: 400 }
-    );
-  }
-
   try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const purchaseOrderId = searchParams.get("purchaseOrderId");
+
+    if (!purchaseOrderId) {
+      return NextResponse.json(
+        { error: "purchaseOrderId is required" },
+        { status: 400 }
+      );
+    }
+
     const purchaseItems =
       await PurchaseItemService.getPurchaseOrderItems(
-        businessId,
+        user.businessId,
         purchaseOrderId
       );
 
     return NextResponse.json(
-      {
-        purchaseItems,
-      },
+      { purchaseItems },
       { status: 200 }
     );
   } catch (error) {
@@ -48,9 +52,7 @@ export async function GET(request: Request) {
     );
 
     return NextResponse.json(
-      {
-        error: "Failed to fetch purchase order items",
-      },
+      { error: "Failed to fetch purchase order items" },
       { status: 500 }
     );
   }
@@ -58,8 +60,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const user = await getCurrentUser();
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
     const result = createPurchaseItemSchema.safeParse(body);
 
     if (!result.success) {
@@ -84,7 +94,7 @@ export async function POST(request: Request) {
 
     const purchaseItem =
       await PurchaseItemService.createPurchaseItem(
-        result.data.businessId,
+        user.businessId,
         result.data.purchaseOrderId,
         result.data.productId,
         result.data.quantity,
@@ -92,9 +102,7 @@ export async function POST(request: Request) {
       );
 
     return NextResponse.json(
-      {
-        purchaseItem,
-      },
+      { purchaseItem },
       { status: 201 }
     );
   } catch (error) {
@@ -132,9 +140,7 @@ export async function POST(request: Request) {
     console.error("Failed to create purchase item:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to create purchase item",
-      },
+      { error: "Failed to create purchase item" },
       { status: 500 }
     );
   }

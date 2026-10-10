@@ -1,35 +1,31 @@
+
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { PurchaseOrderService } from "@/server/services/purchase-order.service";
 import { createPurchaseOrderSchema } from "@/server/validation/purchase-order.validation";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
-  const businessId = searchParams.get("businessId");
-
-  if (!businessId) {
-    return NextResponse.json(
-      {
-        error: "businessId is required",
-      },
-      { status: 400 }
-    );
-  }
-
+export async function GET() {
   try {
-    const purchaseOrders =
-      await PurchaseOrderService.getPurchaseOrders(businessId);
+    const user = await getCurrentUser();
 
-    return NextResponse.json({
-      purchaseOrders,
-    });
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const purchaseOrders =
+      await PurchaseOrderService.getPurchaseOrders(
+        user.businessId
+      );
+
+    return NextResponse.json({ purchaseOrders });
   } catch (error) {
     console.error("Failed to fetch purchase orders:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to fetch purchase orders",
-      },
+      { error: "Failed to fetch purchase orders" },
       { status: 500 }
     );
   }
@@ -37,8 +33,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const user = await getCurrentUser();
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
     const result = createPurchaseOrderSchema.safeParse(body);
 
     if (!result.success) {
@@ -53,14 +57,12 @@ export async function POST(request: Request) {
 
     const purchaseOrder =
       await PurchaseOrderService.createPurchaseOrder(
-        result.data.businessId,
+        user.businessId,
         result.data.supplierId
       );
 
     return NextResponse.json(
-      {
-        purchaseOrder,
-      },
+      { purchaseOrder },
       { status: 201 }
     );
   } catch (error) {
@@ -69,9 +71,7 @@ export async function POST(request: Request) {
       error.message === "Supplier not found"
     ) {
       return NextResponse.json(
-        {
-          error: error.message,
-        },
+        { error: error.message },
         { status: 404 }
       );
     }
@@ -79,9 +79,7 @@ export async function POST(request: Request) {
     console.error("Failed to create purchase order:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to create purchase order",
-      },
+      { error: "Failed to create purchase order" },
       { status: 500 }
     );
   }

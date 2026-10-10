@@ -1,37 +1,31 @@
+
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { PurchaseInvoiceService } from "@/server/services/purchase-invoice.service";
-import {
-  createPurchaseInvoiceSchema,
-  confirmPurchaseInvoiceSchema,
-} from "@/server/validation/purchase-invoice.validation";
+import { createPurchaseInvoiceSchema } from "@/server/validation/purchase-invoice.validation";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const businessId = searchParams.get("businessId");
-
-  if (!businessId) {
-    return NextResponse.json(
-      {
-        error: "businessId is required",
-      },
-      { status: 400 }
-    );
-  }
-
+export async function GET() {
   try {
-    const purchaseInvoices =
-      await PurchaseInvoiceService.getPurchaseInvoices(businessId);
+    const user = await getCurrentUser();
 
-    return NextResponse.json({
-      purchaseInvoices,
-    });
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const purchaseInvoices =
+      await PurchaseInvoiceService.getPurchaseInvoices(
+        user.businessId
+      );
+
+    return NextResponse.json({ purchaseInvoices });
   } catch (error) {
     console.error("Failed to fetch purchase invoices:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to fetch purchase invoices",
-      },
+      { error: "Failed to fetch purchase invoices" },
       { status: 500 }
     );
   }
@@ -39,8 +33,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const user = await getCurrentUser();
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
     const result = createPurchaseInvoiceSchema.safeParse(body);
 
     if (!result.success) {
@@ -55,7 +57,7 @@ export async function POST(request: Request) {
 
     const purchaseInvoice =
       await PurchaseInvoiceService.createPurchaseInvoice(
-        result.data.businessId,
+        user.businessId,
         result.data.supplierId,
         result.data.invoiceNumber,
         result.data.invoiceDate,
@@ -63,9 +65,7 @@ export async function POST(request: Request) {
       );
 
     return NextResponse.json(
-      {
-        purchaseInvoice,
-      },
+      { purchaseInvoice },
       { status: 201 }
     );
   } catch (error) {
@@ -74,9 +74,7 @@ export async function POST(request: Request) {
       error.message === "Supplier not found"
     ) {
       return NextResponse.json(
-        {
-          error: error.message,
-        },
+        { error: error.message },
         { status: 404 }
       );
     }
@@ -84,9 +82,7 @@ export async function POST(request: Request) {
     console.error("Failed to create purchase invoice:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to create purchase invoice",
-      },
+      { error: "Failed to create purchase invoice" },
       { status: 500 }
     );
   }

@@ -1,10 +1,11 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AuditService } from "@/server/services/audit.service";
 
 const updatePurchaseOrderStatusSchema = z.object({
-  businessId: z.string().uuid(),
   purchaseOrderId: z.string().uuid(),
   status: z.enum([
     "DRAFT",
@@ -16,94 +17,81 @@ const updatePurchaseOrderStatusSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const user = await getCurrentUser();
 
-    const input =
-      updatePurchaseOrderStatusSchema.parse(body);
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const input = updatePurchaseOrderStatusSchema.parse(body);
 
     const result = await prisma.$transaction(async (tx) => {
-      const purchaseOrder =
-        await tx.purchaseOrder.findFirst({
-          where: {
-            id: input.purchaseOrderId,
-            businessId: input.businessId,
-          },
-          select: {
-            id: true,
-            businessId: true,
-            supplierId: true,
-            status: true,
-          },
-        });
+      const purchaseOrder = await tx.purchaseOrder.findFirst({
+        where: {
+          id: input.purchaseOrderId,
+          businessId: user.businessId,
+        },
+        select: {
+          id: true,
+          businessId: true,
+          supplierId: true,
+          status: true,
+        },
+      });
 
       if (!purchaseOrder) {
         throw new Error("Purchase order not found");
       }
 
-      if (
-        purchaseOrder.status ===
-        input.status
-      ) {
+      if (purchaseOrder.status === input.status) {
         throw new Error(
           `Purchase order is already ${input.status}`
         );
       }
 
-      const allowedTransitions: Record<
-        string,
-        string[]
-      > = {
-        DRAFT: [
-          "ORDERED",
-          "CANCELLED",
-        ],
-        ORDERED: [
-          "RECEIVED",
-          "CANCELLED",
-        ],
+      const allowedTransitions: Record<string, string[]> = {
+        DRAFT: ["ORDERED", "CANCELLED"],
+        ORDERED: ["RECEIVED", "CANCELLED"],
         RECEIVED: [],
         CANCELLED: [],
       };
 
       const allowedNextStatuses =
-        allowedTransitions[
-          purchaseOrder.status
-        ] ?? [];
+        allowedTransitions[purchaseOrder.status] ?? [];
 
-      if (
-        !allowedNextStatuses.includes(
-          input.status
-        )
-      ) {
+      if (!allowedNextStatuses.includes(input.status)) {
         throw new Error(
           `Cannot change purchase order status from ${purchaseOrder.status} to ${input.status}`
         );
       }
 
-      const previousStatus =
-        purchaseOrder.status;
+      const previousStatus = purchaseOrder.status;
 
-      const updatedPurchaseOrder =
-        await tx.purchaseOrder.update({
-          where: {
-            id: purchaseOrder.id,
-          },
-          data: {
-            status: input.status,
-          },
-          select: {
-            id: true,
-            businessId: true,
-            supplierId: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        });
+      const updatedPurchaseOrder = await tx.purchaseOrder.update({
+        where: {
+          id: purchaseOrder.id,
+        },
+        data: {
+          status: input.status,
+        },
+        select: {
+          id: true,
+          businessId: true,
+          supplierId: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
       await AuditService.log(
         {
-          businessId: input.businessId,
+          businessId: user.businessId,
+          userId: user.id,
           action: "PURCHASE_ORDER_STATUS_CHANGED",
           entityType: "PurchaseOrder",
           entityId: purchaseOrder.id,
@@ -125,37 +113,34 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (
       error instanceof Error &&
-      error.message ===
-        "Purchase order not found"
+      error.message === "Purchase order not found"
     ) {
       return NextResponse.json(
-        {
-          error: error.message,
-        },
-        {
-          status: 404,
-        }
+        { error: error.message },
+        { status: 404 }
       );
     }
 
     if (
       error instanceof Error &&
       (
-        error.message.startsWith(
-          "Purchase order is already "
-        ) ||
-        error.message.startsWith(
-          "Cannot change purchase order status"
-        )
+        error.message.startsWith("Purchase order is already ") ||
+        error.message.startsWith("Cannot change purchase order status")
       )
     ) {
       return NextResponse.json(
+        { error: error.message },
+        { status: 409 }
+      );
+    }
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
         {
-          error: error.message,
+          error: "Invalid purchase order status request",
+          details: error.flatten(),
         },
-        {
-          status: 409,
-        }
+        { status: 400 }
       );
     }
 
@@ -164,26 +149,9 @@ export async function POST(request: NextRequest) {
       error
     );
 
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: "Invalid purchase order status request",
-          details: error.flatten(),
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
     return NextResponse.json(
-      {
-        error:
-          "Failed to update purchase order status",
-      },
-      {
-        status: 500,
-      }
+      { error: "Failed to update purchase order status" },
+      { status: 500 }
     );
   }
 }

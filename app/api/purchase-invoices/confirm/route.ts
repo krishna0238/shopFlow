@@ -1,11 +1,21 @@
+
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { PurchaseInvoiceService } from "@/server/services/purchase-invoice.service";
 import { confirmPurchaseInvoiceSchema } from "@/server/validation/purchase-invoice.validation";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const user = await getCurrentUser();
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
     const result = confirmPurchaseInvoiceSchema.safeParse(body);
 
     if (!result.success) {
@@ -20,13 +30,11 @@ export async function POST(request: Request) {
 
     const purchaseInvoice =
       await PurchaseInvoiceService.confirmPurchaseInvoice(
-        result.data.businessId,
+        user.businessId,
         result.data.purchaseInvoiceId
       );
 
-    return NextResponse.json({
-      purchaseInvoice,
-    });
+    return NextResponse.json({ purchaseInvoice });
   } catch (error) {
     if (
       error instanceof Error &&
@@ -40,8 +48,7 @@ export async function POST(request: Request) {
 
     if (
       error instanceof Error &&
-      error.message ===
-        "Only draft purchase invoices can be confirmed"
+      error.message === "Only draft purchase invoices can be confirmed"
     ) {
       return NextResponse.json(
         { error: error.message },
@@ -51,8 +58,7 @@ export async function POST(request: Request) {
 
     if (
       error instanceof Error &&
-      error.message ===
-        "Purchase invoice must contain at least one item"
+      error.message === "Purchase invoice must contain at least one item"
     ) {
       return NextResponse.json(
         { error: error.message },
@@ -73,9 +79,7 @@ export async function POST(request: Request) {
     console.error("Failed to confirm purchase invoice:", error);
 
     return NextResponse.json(
-      {
-        error: "Failed to confirm purchase invoice",
-      },
+      { error: "Failed to confirm purchase invoice" },
       { status: 500 }
     );
   }
