@@ -30,6 +30,20 @@ export async function POST(request: NextRequest) {
     const input = updatePurchaseOrderStatusSchema.parse(body);
 
     const result = await prisma.$transaction(async (tx) => {
+      const lockedOrders = await tx.$queryRaw<
+        Array<{ id: string }>
+      >`
+        SELECT "id"
+        FROM "purchase_orders"
+        WHERE "id" = ${input.purchaseOrderId}
+          AND "businessId" = ${user.businessId}
+        FOR UPDATE
+      `;
+
+      if (lockedOrders.length === 0) {
+        throw new Error("Purchase order not found");
+      }
+
       const purchaseOrder = await tx.purchaseOrder.findFirst({
         where: {
           id: input.purchaseOrderId,

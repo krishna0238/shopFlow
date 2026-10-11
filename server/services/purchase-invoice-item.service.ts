@@ -1,3 +1,4 @@
+
 import { prisma } from "@/lib/prisma";
 
 export class PurchaseInvoiceItemService {
@@ -8,49 +9,65 @@ export class PurchaseInvoiceItemService {
     quantity: number,
     unitPrice: number
   ) {
-    const purchaseInvoice = await prisma.purchaseInvoice.findFirst({
-      where: {
-        id: purchaseInvoiceId,
-        businessId,
-      },
-    });
+    return prisma.$transaction(async (tx) => {
+      const lockedInvoices = await tx.$queryRaw<
+        Array<{ id: string }>
+      >`
+        SELECT "id"
+        FROM "purchase_invoices"
+        WHERE "id" = ${purchaseInvoiceId}
+          AND "businessId" = ${businessId}
+        FOR UPDATE
+      `;
 
-    if (!purchaseInvoice) {
-      throw new Error("Purchase invoice not found");
-    }
+      if (lockedInvoices.length === 0) {
+        throw new Error("Purchase invoice not found");
+      }
 
-    if (purchaseInvoice.status !== "DRAFT") {
-      throw new Error(
-        "Items can only be added to a draft purchase invoice"
-      );
-    }
+      const purchaseInvoice = await tx.purchaseInvoice.findFirst({
+        where: {
+          id: purchaseInvoiceId,
+          businessId,
+        },
+      });
 
-    const product = await prisma.product.findFirst({
-      where: {
-        id: productId,
-        businessId,
-        isActive: true,
-      },
-    });
+      if (!purchaseInvoice) {
+        throw new Error("Purchase invoice not found");
+      }
 
-    if (!product) {
-      throw new Error("Product not found");
-    }
+      if (purchaseInvoice.status !== "DRAFT") {
+        throw new Error(
+          "Items can only be added to a draft purchase invoice"
+        );
+      }
 
-    const total = quantity * unitPrice;
+      const product = await tx.product.findFirst({
+        where: {
+          id: productId,
+          businessId,
+          isActive: true,
+        },
+      });
 
-    return prisma.purchaseItem.create({
-      data: {
-        productId,
-        quantity,
-        unitPrice,
-        total,
-        invoiceId: purchaseInvoiceId,
-      },
-      include: {
-        product: true,
-        invoice: true,
-      },
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
+      const total = quantity * unitPrice;
+
+      return tx.purchaseItem.create({
+        data: {
+          productId,
+          quantity,
+          unitPrice,
+          total,
+          invoiceId: purchaseInvoiceId,
+        },
+        include: {
+          product: true,
+          invoice: true,
+        },
+      });
     });
   }
 }

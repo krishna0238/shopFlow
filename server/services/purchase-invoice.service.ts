@@ -1,3 +1,4 @@
+
 import { prisma } from "@/lib/prisma";
 import { AuditService } from "@/server/services/audit.service";
 
@@ -64,6 +65,20 @@ export class PurchaseInvoiceService {
     purchaseInvoiceId: string
   ) {
     return prisma.$transaction(async (tx) => {
+      const lockedInvoices = await tx.$queryRaw<
+        Array<{ id: string }>
+      >`
+        SELECT "id"
+        FROM "purchase_invoices"
+        WHERE "id" = ${purchaseInvoiceId}
+          AND "businessId" = ${businessId}
+        FOR UPDATE
+      `;
+
+      if (lockedInvoices.length === 0) {
+        throw new Error("Purchase invoice not found");
+      }
+
       const invoice = await tx.purchaseInvoice.findFirst({
         where: {
           id: purchaseInvoiceId,
@@ -97,21 +112,23 @@ export class PurchaseInvoiceService {
             businessId,
             isActive: true,
           },
+          select: {
+            id: true,
+          },
         });
 
         if (!product) {
           throw new Error("Product not found");
         }
 
-        const newStockQuantity =
-          Number(product.stockQuantity) + Number(item.quantity);
-
         await tx.product.update({
           where: {
             id: product.id,
           },
           data: {
-            stockQuantity: newStockQuantity,
+            stockQuantity: {
+              increment: item.quantity,
+            },
             purchasePrice: item.unitPrice,
           },
         });

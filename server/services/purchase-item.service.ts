@@ -1,3 +1,4 @@
+
 import { prisma } from "@/lib/prisma";
 
 export class PurchaseItemService {
@@ -36,49 +37,69 @@ export class PurchaseItemService {
     quantity: number,
     unitPrice: number
   ) {
-    const purchaseOrder = await prisma.purchaseOrder.findFirst({
-      where: {
-        id: purchaseOrderId,
-        businessId,
-      },
-    });
+    return prisma.$transaction(async (tx) => {
+      const lockedOrders = await tx.$queryRaw<
+        Array<{ id: string }>
+      >`
+        SELECT "id"
+        FROM "purchase_orders"
+        WHERE "id" = ${purchaseOrderId}
+          AND "businessId" = ${businessId}
+        FOR UPDATE
+      `;
 
-    if (!purchaseOrder) {
-      throw new Error("Purchase order not found");
-    }
+      if (lockedOrders.length === 0) {
+        throw new Error("Purchase order not found");
+      }
 
-    if (purchaseOrder.status !== "DRAFT") {
-      throw new Error(
-        "Items can only be added to a draft purchase order"
-      );
-    }
+      const purchaseOrder = await tx.purchaseOrder.findFirst({
+        where: {
+          id: purchaseOrderId,
+          businessId,
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
 
-    const product = await prisma.product.findFirst({
-      where: {
-        id: productId,
-        businessId,
-        isActive: true,
-      },
-    });
+      if (!purchaseOrder) {
+        throw new Error("Purchase order not found");
+      }
 
-    if (!product) {
-      throw new Error("Product not found");
-    }
+      if (purchaseOrder.status !== "DRAFT") {
+        throw new Error(
+          "Items can only be added to a draft purchase order"
+        );
+      }
 
-    const total = quantity * unitPrice;
+      const product = await tx.product.findFirst({
+        where: {
+          id: productId,
+          businessId,
+          isActive: true,
+        },
+      });
 
-    return prisma.purchaseItem.create({
-      data: {
-        productId,
-        quantity,
-        unitPrice,
-        total,
-        orderId: purchaseOrderId,
-      },
-      include: {
-        product: true,
-        order: true,
-      },
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
+      const total = quantity * unitPrice;
+
+      return tx.purchaseItem.create({
+        data: {
+          productId,
+          quantity,
+          unitPrice,
+          total,
+          orderId: purchaseOrderId,
+        },
+        include: {
+          product: true,
+          order: true,
+        },
+      });
     });
   }
 }
