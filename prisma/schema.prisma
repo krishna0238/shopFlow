@@ -17,6 +17,7 @@ enum InventoryMovementType {
   PURCHASE
   SALE
   ADJUSTMENT
+  RETURN
 }
 
 enum PurchaseOrderStatus {
@@ -60,6 +61,11 @@ model Business {
   purchaseInvoices   PurchaseInvoice[]
   creditTransactions CreditTransaction[]
   auditLogs          AuditLog[]
+  saleReturns        SaleReturn[]
+  supplierPayments   SupplierPayment[]
+
+  gstin       String?
+  businessState String?
 
   @@map("businesses")
 }
@@ -123,12 +129,15 @@ model Product {
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  hsnCode  String?
+  gstRate  Decimal  @default(0)
 
   business           Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
   category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   inventoryMovements InventoryMovement[]
   saleItems          SaleItem[]
   purchaseItems      PurchaseItem[]
+  saleReturnItems    SaleReturnItem[]
 
   @@unique([businessId, sku])
   @@index([businessId])
@@ -178,13 +187,17 @@ model Sale {
   id          String          @id @default(uuid())
   businessId  String
   customerId  String?
-  paymentMode SalePaymentMode @default(CASH)
-  totalAmount Decimal
-  createdAt   DateTime        @default(now())
+  paymentMode  SalePaymentMode @default(CASH)
+  subtotal     Decimal?
+  taxAmount    Decimal?
+  taxBreakdown Json?
+  totalAmount  Decimal
+  createdAt    DateTime        @default(now())
 
-  business Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customer Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  business Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items    SaleItem[]
+  returns  SaleReturn[]
 
   @@index([businessId])
   @@index([customerId])
@@ -221,6 +234,7 @@ model Supplier {
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
   purchaseOrders   PurchaseOrder[]
   purchaseInvoices PurchaseInvoice[]
+  payments         SupplierPayment[]
 
   @@index([businessId])
   @@map("suppliers")
@@ -321,3 +335,54 @@ model AuditLog {
   @@index([businessId, createdAt])
   @@map("audit_logs")
 }
+
+model SaleReturn {
+  id          String   @id @default(uuid())
+  businessId  String
+  saleId      String
+  reason      String?
+  totalRefund Decimal
+  createdAt   DateTime @default(now())
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sale     Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  items    SaleReturnItem[]
+
+  @@index([businessId])
+  @@index([saleId])
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id           String  @id @default(uuid())
+  saleReturnId String
+  productId    String
+  quantity     Decimal
+  unitPrice    Decimal
+  total        Decimal
+
+  saleReturn SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([saleReturnId])
+  @@index([productId])
+  @@map("sale_return_items")
+}
+
+model SupplierPayment {
+  id          String   @id @default(uuid())
+  businessId  String
+  supplierId  String
+  amount      Decimal
+  paymentMode String   @default("CASH")
+  note        String?
+  createdAt   DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([supplierId])
+  @@map("supplier_payments")
+}
+

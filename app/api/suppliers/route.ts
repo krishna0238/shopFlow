@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
@@ -41,13 +42,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const body: unknown = await request.json();
 
-    // The business ID comes from the authenticated session,
-    // not from client-submitted request data.
-    const { businessId: _ignoredBusinessId, ...supplierData } =
-      body && typeof body === "object" && !Array.isArray(body)
-        ? body
+    // The authenticated session determines the supplier's business.
+    // Validate only supplier fields; never trust a client-supplied businessId.
+    const supplierData =
+      body !== null &&
+      typeof body === "object" &&
+      !Array.isArray(body)
+        ? Object.fromEntries(
+            Object.entries(body).filter(
+              ([key]) => key !== "businessId"
+            )
+          )
         : {};
 
     const result = createSupplierSchema

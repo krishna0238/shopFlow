@@ -50,6 +50,8 @@ export class ProductService {
           categoryId: input.categoryId,
           name: input.name,
           sku: input.sku,
+          hsnCode: input.hsnCode,
+          gstRate: input.gstRate,
           purchasePrice: input.purchasePrice,
           sellingPrice: input.sellingPrice,
           stockQuantity: input.stockQuantity,
@@ -81,6 +83,8 @@ export class ProductService {
           details: {
             productName: product.name,
             sku: product.sku ?? null,
+            hsnCode: input.hsnCode ?? null,
+            gstRate: input.gstRate ?? 0,
             categoryId: product.categoryId ?? null,
             purchasePrice: input.purchasePrice,
             sellingPrice: input.sellingPrice,

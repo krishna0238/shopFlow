@@ -1,4 +1,3 @@
-
 import { prisma } from "@/lib/prisma";
 
 export class PurchaseInvoiceItemService {
@@ -55,7 +54,7 @@ export class PurchaseInvoiceItemService {
 
       const total = quantity * unitPrice;
 
-      return tx.purchaseItem.create({
+      const purchaseItem = await tx.purchaseItem.create({
         data: {
           productId,
           quantity,
@@ -68,6 +67,31 @@ export class PurchaseInvoiceItemService {
           invoice: true,
         },
       });
+
+      const invoiceItems = await tx.purchaseItem.findMany({
+        where: {
+          invoiceId: purchaseInvoiceId,
+        },
+        select: {
+          total: true,
+        },
+      });
+
+      const totalAmount = invoiceItems.reduce(
+        (sum, item) => sum + Number(item.total),
+        0
+      );
+
+      await tx.purchaseInvoice.update({
+        where: {
+          id: purchaseInvoiceId,
+        },
+        data: {
+          totalAmount,
+        },
+      });
+
+      return purchaseItem;
     });
   }
 }

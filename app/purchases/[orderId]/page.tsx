@@ -1,11 +1,9 @@
+
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-
-const BUSINESS_ID =
-  "3b4fc147-7ea2-495f-a64e-878dfdabc158";
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 
 type PurchaseOrderStatus =
   | "DRAFT"
@@ -47,298 +45,253 @@ type Product = {
 
 export default function PurchaseOrderDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const orderId = params.orderId as string;
 
-  const [order, setOrder] =
-    useState<PurchaseOrder | null>(null);
+  const [order, setOrder] = useState<PurchaseOrder | null>(null);
+  const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  const [purchaseItems, setPurchaseItems] =
-    useState<PurchaseItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [itemsLoading, setItemsLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
 
-  const [products, setProducts] =
-    useState<Product[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [unitPrice, setUnitPrice] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [addingItem, setAddingItem] = useState(false);
+  const [itemMessage, setItemMessage] = useState("");
+  const [itemError, setItemError] = useState("");
 
-  const [itemsLoading, setItemsLoading] =
-    useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusError, setStatusError] = useState("");
+  const [pageError, setPageError] = useState("");
 
-  const [productsLoading, setProductsLoading] =
-    useState(true);
-
-  const [selectedProductId, setSelectedProductId] =
-    useState("");
-
-  const [quantity, setQuantity] =
-    useState("");
-
-  const [unitPrice, setUnitPrice] =
-    useState("");
-
-  const [addingItem, setAddingItem] =
-    useState(false);
-
-  const [itemMessage, setItemMessage] =
-    useState("");
-
-  const [itemError, setItemError] =
-    useState("");
-
-  const [updatingStatus, setUpdatingStatus] =
-    useState(false);
-
-  const [statusMessage, setStatusMessage] =
-    useState("");
-
-  const [statusError, setStatusError] =
-    useState("");
-
-  useEffect(() => {
-    async function loadPurchaseOrder() {
-      try {
-        setLoading(true);
-
-        const response = await fetch(
-          `/api/purchase-orders?businessId=${BUSINESS_ID}`
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.error ||
-              "Failed to load purchase orders"
-          );
-        }
-
-        const foundOrder =
-          data.purchaseOrders.find(
-            (item: PurchaseOrder) =>
-              item.id === orderId
-          );
-
-        if (!foundOrder) {
-          throw new Error(
-            "Purchase order not found"
-          );
-        }
-
-        setOrder(foundOrder);
-      } catch (err) {
-        console.error(
-          "Failed to load purchase order:",
-          err
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    if (orderId) {
-      loadPurchaseOrder();
-    }
-  }, [orderId]);
-
-  async function loadPurchaseItems() {
+  const loadPurchaseOrder = useCallback(async () => {
     try {
-      setItemsLoading(true);
+      setLoading(true);
+      setPageError("");
 
-      const response = await fetch(
-        `/api/purchase-orders/items?businessId=${BUSINESS_ID}&purchaseOrderId=${orderId}`
-      );
+      const response = await fetch("/api/purchase-orders");
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Failed to load purchase items"
-        );
+        throw new Error(data.error || "Failed to load purchase orders");
       }
 
-      setPurchaseItems(
-        data.purchaseItems
+      const foundOrder = (data.purchaseOrders as PurchaseOrder[]).find(
+        (item) => item.id === orderId
       );
+
+      if (!foundOrder) {
+        throw new Error("Purchase order not found");
+      }
+
+      setOrder(foundOrder);
     } catch (err) {
-      console.error(
-        "Failed to load purchase items:",
-        err
+      setPageError(
+        err instanceof Error ? err.message : "Failed to load purchase order"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled && orderId) {
+        void loadPurchaseOrder();
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [orderId, loadPurchaseOrder]);
+
+  const loadPurchaseItems = useCallback(async () => {
+    try {
+      setItemsLoading(true);
+
+      const response = await fetch(
+        `/api/purchase-orders/items?purchaseOrderId=${encodeURIComponent(orderId)}`
+      );
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load purchase items");
+      }
+
+      setPurchaseItems(data.purchaseItems ?? []);
+    } catch (err) {
+      setItemError(
+        err instanceof Error ? err.message : "Failed to load purchase items"
       );
     } finally {
       setItemsLoading(false);
     }
-  }
+  }, [orderId, router]);
 
   useEffect(() => {
-    if (orderId) {
-      loadPurchaseItems();
-    }
-  }, [orderId]);
+    let cancelled = false;
 
-  useEffect(() => {
-    async function loadProducts() {
-      try {
-        setProductsLoading(true);
-
-        const response = await fetch(
-          `/api/products?businessId=${BUSINESS_ID}`
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.error ||
-              "Failed to load products"
-          );
-        }
-
-        setProducts(data.products);
-      } catch (err) {
-        console.error(
-          "Failed to load products:",
-          err
-        );
-      } finally {
-        setProductsLoading(false);
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled && orderId) {
+        void loadPurchaseItems();
       }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [orderId, loadPurchaseItems]);
+
+  const loadProducts = useCallback(async () => {
+    try {
+      setProductsLoading(true);
+
+      const response = await fetch("/api/products");
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load products");
+      }
+
+      setProducts(data.products ?? []);
+    } catch (err) {
+      setItemError(
+        err instanceof Error ? err.message : "Failed to load products"
+      );
+    } finally {
+      setProductsLoading(false);
     }
+  }, [router]);
 
-    loadProducts();
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
 
-  function handleProductChange(
-    productId: string
-  ) {
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled) {
+        void loadProducts();
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadProducts]);
+
+  function handleProductChange(productId: string) {
     setSelectedProductId(productId);
     setItemMessage("");
     setItemError("");
 
-    const selectedProduct =
-      products.find(
-        (product) =>
-          product.id === productId
-      );
+    const selectedProduct = products.find(
+      (product) => product.id === productId
+    );
 
-    if (selectedProduct) {
-      setUnitPrice(
-        String(
-          Number(
-            selectedProduct.purchasePrice
-          )
-        )
-      );
-    } else {
-      setUnitPrice("");
-    }
+    setUnitPrice(
+      selectedProduct ? String(Number(selectedProduct.purchasePrice)) : ""
+    );
   }
 
-  async function handleAddItem(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  async function handleAddItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     setItemMessage("");
     setItemError("");
 
-    const quantityNumber =
-      Number(quantity);
-
-    const unitPriceNumber =
-      Number(unitPrice);
+    const quantityNumber = Number(quantity);
+    const unitPriceNumber = Number(unitPrice);
 
     if (!selectedProductId) {
-      setItemError(
-        "Please select a product"
-      );
-
+      setItemError("Please select a product");
       return;
     }
 
     if (
-      !Number.isFinite(
-        quantityNumber
-      ) ||
+      !Number.isSafeInteger(quantityNumber) ||
       quantityNumber <= 0
     ) {
-      setItemError(
-        "Quantity must be greater than 0"
-      );
-
+      setItemError("Quantity must be a positive whole number");
       return;
     }
 
     if (
-      !Number.isFinite(
-        unitPriceNumber
-      ) ||
+      !Number.isFinite(unitPriceNumber) ||
       unitPriceNumber < 0
     ) {
-      setItemError(
-        "Unit price must be 0 or greater"
-      );
-
+      setItemError("Unit price must be 0 or greater");
       return;
     }
 
     try {
       setAddingItem(true);
 
-      const response = await fetch(
-        "/api/purchase-orders/items",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            businessId: BUSINESS_ID,
-            purchaseOrderId: orderId,
-            productId:
-              selectedProductId,
-            quantity:
-              quantityNumber,
-            unitPrice:
-              unitPriceNumber,
-          }),
-        }
-      );
+      const response = await fetch("/api/purchase-orders/items", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          purchaseOrderId: orderId,
+          productId: selectedProductId,
+          quantity: quantityNumber,
+          unitPrice: unitPriceNumber,
+        }),
+      });
 
-      const data =
-        await response.json();
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Failed to add purchase item"
-        );
+        throw new Error(data.error || "Failed to add purchase item");
       }
 
       setQuantity("");
       setSelectedProductId("");
       setUnitPrice("");
-
-      setItemMessage(
-        "Purchase item added successfully"
-      );
+      setItemMessage("Purchase item added successfully");
 
       await loadPurchaseItems();
     } catch (err) {
       setItemError(
-        err instanceof Error
-          ? err.message
-          : "Failed to add purchase item"
+        err instanceof Error ? err.message : "Failed to add purchase item"
       );
     } finally {
       setAddingItem(false);
     }
   }
 
-  async function handleStatusChange(
-    status: PurchaseOrderStatus
-  ) {
+  async function handleStatusChange(status: PurchaseOrderStatus) {
     setStatusMessage("");
     setStatusError("");
 
@@ -349,54 +302,41 @@ export default function PurchaseOrderDetailsPage() {
     try {
       setUpdatingStatus(true);
 
-      const response = await fetch(
-        "/api/purchase-orders/status",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            businessId: BUSINESS_ID,
-            purchaseOrderId:
-              order.id,
-            status,
-          }),
-        }
-      );
+      const response = await fetch("/api/purchase-orders/status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          purchaseOrderId: order.id,
+          status,
+        }),
+      });
 
-      const data =
-        await response.json();
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error ||
-            "Failed to update purchase order status"
+          data.error || "Failed to update purchase order status"
         );
       }
 
-      setOrder(
-        (currentOrder) =>
-          currentOrder
-            ? {
-                ...currentOrder,
-                status:
-                  data.purchaseOrder
-                    .status,
-              }
-            : currentOrder
+      setOrder((currentOrder) =>
+        currentOrder
+          ? {
+              ...currentOrder,
+              status: data.purchaseOrder.status,
+            }
+          : currentOrder
       );
 
-      setStatusMessage(
-        `Purchase order marked as ${status}.`
-      );
+      setStatusMessage(`Purchase order marked as ${status}.`);
     } catch (err) {
-      console.error(
-        "Purchase order status update failed:",
-        err
-      );
-
       setStatusError(
         err instanceof Error
           ? err.message
@@ -417,28 +357,18 @@ export default function PurchaseOrderDetailsPage() {
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() =>
-              handleStatusChange(
-                "ORDERED"
-              )
-            }
+            onClick={() => void handleStatusChange("ORDERED")}
             disabled={updatingStatus}
-            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {updatingStatus
-              ? "Updating..."
-              : "Mark Ordered"}
+            {updatingStatus ? "Updating..." : "Mark Ordered"}
           </button>
 
           <button
             type="button"
-            onClick={() =>
-              handleStatusChange(
-                "CANCELLED"
-              )
-            }
+            onClick={() => void handleStatusChange("CANCELLED")}
             disabled={updatingStatus}
-            className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-red-300 px-4 py-2 text-sm font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel Order
           </button>
@@ -451,28 +381,18 @@ export default function PurchaseOrderDetailsPage() {
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() =>
-              handleStatusChange(
-                "RECEIVED"
-              )
-            }
+            onClick={() => void handleStatusChange("RECEIVED")}
             disabled={updatingStatus}
-            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {updatingStatus
-              ? "Updating..."
-              : "Mark Received"}
+            {updatingStatus ? "Updating..." : "Mark Received"}
           </button>
 
           <button
             type="button"
-            onClick={() =>
-              handleStatusChange(
-                "CANCELLED"
-              )
-            }
+            onClick={() => void handleStatusChange("CANCELLED")}
             disabled={updatingStatus}
-            className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-red-300 px-4 py-2 text-sm font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel Order
           </button>
@@ -482,9 +402,7 @@ export default function PurchaseOrderDetailsPage() {
 
     return (
       <p className="text-sm text-gray-500">
-        No further status changes are
-        available for this purchase
-        order.
+        No further status changes are available for this purchase order.
       </p>
     );
   }
@@ -493,9 +411,7 @@ export default function PurchaseOrderDetailsPage() {
     return (
       <main className="min-h-screen p-6">
         <div className="mx-auto max-w-5xl">
-          <p className="text-gray-400">
-            Loading purchase order...
-          </p>
+          <p className="text-[var(--text-secondary)]">Loading purchase order...</p>
         </div>
       </main>
     );
@@ -505,13 +421,13 @@ export default function PurchaseOrderDetailsPage() {
     return (
       <main className="min-h-screen p-6">
         <div className="mx-auto max-w-5xl">
-          <p className="mb-4 text-red-400">
-            Purchase order not found
+          <p className="mb-4 text-red-600">
+            {pageError || "Purchase order not found"}
           </p>
 
           <Link
             href="/purchases"
-            className="font-medium text-blue-400 underline"
+            className="font-medium text-[var(--text-primary)] underline"
           >
             Back to Purchases
           </Link>
@@ -520,8 +436,7 @@ export default function PurchaseOrderDetailsPage() {
     );
   }
 
-  const canAddItems =
-    order.status === "DRAFT";
+  const canAddItems = order.status === "DRAFT";
 
   return (
     <main className="min-h-screen p-6">
@@ -529,29 +444,22 @@ export default function PurchaseOrderDetailsPage() {
         <div className="mb-6">
           <Link
             href="/purchases"
-            className="text-sm font-medium text-blue-400 underline underline-offset-4"
+            className="text-sm font-medium text-[var(--text-primary)] underline underline-offset-4"
           >
             ← Back to Purchases
           </Link>
         </div>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Purchase Order
-          </h1>
-
-          <p className="mt-2 text-gray-400">
-            View supplier and purchase
-            order information.
+          <h1 className="text-[40px] leading-[1.1] tracking-[-0.03em]">Purchase Order</h1>
+          <p className="mt-2 text-[var(--text-secondary)]">
+            View supplier and purchase order information.
           </p>
         </div>
 
-        <section className="rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
+        <section className="rounded-lg border bg-white p-6 text-gray-900">
           <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <h2 className="text-xl font-semibold">
-              Order Information
-            </h2>
-
+            <h2 className="text-2xl font-semibold">Order Information</h2>
             <div className="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium">
               {order.status}
             </div>
@@ -559,34 +467,19 @@ export default function PurchaseOrderDetailsPage() {
 
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <p className="text-sm font-medium text-gray-500">
-                Supplier
-              </p>
-
-              <p className="mt-1 font-medium">
-                {order.supplier.name}
-              </p>
+              <p className="text-sm font-medium text-gray-500">Supplier</p>
+              <p className="mt-1 font-medium">{order.supplier.name}</p>
             </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-500">
-                Status
-              </p>
-
-              <p className="mt-1 font-medium">
-                {order.status}
-              </p>
+              <p className="text-sm font-medium text-gray-500">Status</p>
+              <p className="mt-1 font-medium">{order.status}</p>
             </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-500">
-                Created
-              </p>
-
+              <p className="text-sm font-medium text-gray-500">Created</p>
               <p className="mt-1">
-                {new Date(
-                  order.createdAt
-                ).toLocaleString()}
+                {new Date(order.createdAt).toLocaleString()}
               </p>
             </div>
           </div>
@@ -612,146 +505,110 @@ export default function PurchaseOrderDetailsPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold">
-            Supplier Information
-          </h2>
+        <section className="mt-6 rounded-lg border bg-white p-6 text-gray-900">
+          <h2 className="mb-4 text-2xl font-semibold">Supplier Information</h2>
 
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <p className="text-sm font-medium text-gray-500">
-                Name
-              </p>
-
-              <p className="mt-1">
-                {order.supplier.name}
-              </p>
+              <p className="text-sm font-medium text-gray-500">Name</p>
+              <p className="mt-1">{order.supplier.name}</p>
             </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-500">
-                Phone
-              </p>
-
-              <p className="mt-1">
-                {order.supplier.phone ||
-                  "—"}
-              </p>
+              <p className="text-sm font-medium text-gray-500">Phone</p>
+              <p className="mt-1">{order.supplier.phone || "—"}</p>
             </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-500">
-                Email
-              </p>
-
-              <p className="mt-1">
-                {order.supplier.email ||
-                  "—"}
-              </p>
+              <p className="text-sm font-medium text-gray-500">Email</p>
+              <p className="mt-1">{order.supplier.email || "—"}</p>
             </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-500">
-                Address
-              </p>
-
-              <p className="mt-1">
-                {order.supplier.address ||
-                  "—"}
-              </p>
+              <p className="text-sm font-medium text-gray-500">Address</p>
+              <p className="mt-1">{order.supplier.address || "—"}</p>
             </div>
           </div>
         </section>
 
         {canAddItems ? (
-          <section className="mt-6 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-            <h2 className="mb-4 text-xl font-semibold">
-              Add Purchase Item
-            </h2>
+          <section className="mt-6 rounded-lg border bg-white p-6 text-gray-900">
+            <h2 className="mb-4 text-2xl font-semibold">Add Purchase Item</h2>
 
             <form onSubmit={handleAddItem}>
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium">
+                  <label
+                    htmlFor="productId"
+                    className="mb-1 block text-sm font-medium"
+                  >
                     Product
                   </label>
 
                   <select
-                    value={
-                      selectedProductId
-                    }
+                    id="productId"
+                    value={selectedProductId}
                     onChange={(event) =>
-                      handleProductChange(
-                        event.target.value
-                      )
+                      handleProductChange(event.target.value)
                     }
-                    disabled={
-                      productsLoading ||
-                      addingItem
-                    }
-                    className="w-full rounded-md border px-3 py-2"
+                    disabled={productsLoading || addingItem}
+                    required
+                    className="w-full rounded-xl border px-3 py-2"
                   >
                     <option value="">
-                      {productsLoading
-                        ? "Loading products..."
-                        : "Select product"}
+                      {productsLoading ? "Loading products..." : "Select product"}
                     </option>
 
-                    {products.map(
-                      (product) => (
-                        <option
-                          key={product.id}
-                          value={product.id}
-                        >
-                          {product.name}
-                          {product.sku
-                            ? ` (${product.sku})`
-                            : ""}
-                        </option>
-                      )
-                    )}
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                        {product.sku ? ` (${product.sku})` : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium">
+                  <label
+                    htmlFor="quantity"
+                    className="mb-1 block text-sm font-medium"
+                  >
                     Quantity
                   </label>
 
                   <input
+                    id="quantity"
                     type="number"
                     min="1"
                     step="1"
                     value={quantity}
-                    onChange={(event) =>
-                      setQuantity(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => setQuantity(event.target.value)}
                     disabled={addingItem}
+                    required
                     placeholder="10"
-                    className="w-full rounded-md border px-3 py-2"
+                    className="w-full rounded-xl border px-3 py-2"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium">
+                  <label
+                    htmlFor="unitPrice"
+                    className="mb-1 block text-sm font-medium"
+                  >
                     Unit Price
                   </label>
 
                   <input
+                    id="unitPrice"
                     type="number"
                     min="0"
                     step="0.01"
                     value={unitPrice}
-                    onChange={(event) =>
-                      setUnitPrice(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => setUnitPrice(event.target.value)}
                     disabled={addingItem}
+                    required
                     placeholder="90"
-                    className="w-full rounded-md border px-3 py-2"
+                    className="w-full rounded-xl border px-3 py-2"
                   />
                 </div>
               </div>
@@ -770,110 +627,59 @@ export default function PurchaseOrderDetailsPage() {
 
               <button
                 type="submit"
-                disabled={addingItem}
-                className="mt-5 rounded-md bg-black px-5 py-2 font-medium text-white disabled:opacity-50"
+                disabled={addingItem || productsLoading}
+                className="mt-5 rounded-full bg-black px-5 py-2 font-medium text-white disabled:opacity-50"
               >
-                {addingItem
-                  ? "Adding..."
-                  : "Add Item"}
+                {addingItem ? "Adding..." : "Add Item"}
               </button>
             </form>
           </section>
         ) : (
-          <section className="mt-6 rounded-lg border bg-gray-50 p-6 text-gray-900 shadow-sm">
-            <h2 className="text-xl font-semibold">
-              Purchase Items
-            </h2>
-
+          <section className="mt-6 rounded-lg border bg-gray-50 p-6 text-gray-900">
+            <h2 className="text-2xl font-semibold">Purchase Items</h2>
             <p className="mt-2 text-sm text-gray-600">
-              Items can only be added while the
-              purchase order is in DRAFT status.
+              Items can only be added while the purchase order is in DRAFT
+              status.
             </p>
           </section>
         )}
 
-        <section className="mt-6 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold">
-            Current Purchase Items
-          </h2>
+        <section className="mt-6 rounded-lg border bg-white p-6 text-gray-900">
+          <h2 className="mb-4 text-2xl font-semibold">Current Purchase Items</h2>
 
           {itemsLoading ? (
-            <p className="text-gray-600">
-              Loading purchase items...
-            </p>
-          ) : purchaseItems.length ===
-            0 ? (
-            <p className="text-gray-600">
-              No purchase items found.
-            </p>
+            <p className="text-gray-600">Loading purchase items...</p>
+          ) : purchaseItems.length === 0 ? (
+            <p className="text-gray-600">No purchase items found.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b text-sm text-gray-500">
-                    <th className="px-3 py-3 font-medium">
-                      Product
-                    </th>
-
-                    <th className="px-3 py-3 font-medium">
-                      SKU
-                    </th>
-
-                    <th className="px-3 py-3 font-medium">
-                      Quantity
-                    </th>
-
-                    <th className="px-3 py-3 font-medium">
-                      Unit Price
-                    </th>
-
-                    <th className="px-3 py-3 font-medium">
-                      Total
-                    </th>
+                    <th className="px-3 py-3 font-medium">Product</th>
+                    <th className="px-3 py-3 font-medium">SKU</th>
+                    <th className="px-3 py-3 font-medium">Quantity</th>
+                    <th className="px-3 py-3 font-medium">Unit Price</th>
+                    <th className="px-3 py-3 font-medium">Total</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {purchaseItems.map(
-                    (item) => (
-                      <tr
-                        key={item.id}
-                        className="border-b last:border-b-0"
-                      >
-                        <td className="px-3 py-4 font-medium">
-                          {
-                            item.product
-                              .name
-                          }
-                        </td>
-
-                        <td className="px-3 py-4">
-                          {item.product
-                            .sku || "—"}
-                        </td>
-
-                        <td className="px-3 py-4">
-                          {Number(
-                            item.quantity
-                          )}
-                        </td>
-
-                        <td className="px-3 py-4">
-                          ₹
-                          {Number(
-                            item.unitPrice
-                          ).toFixed(2)}
-                        </td>
-
-                        <td className="px-3 py-4 font-medium">
-                          ₹
-                          {Number(
-                            item.total
-                          ).toFixed(2)}
-                        </td>
-                      </tr>
-                    )
-                  )}
+                  {purchaseItems.map((item) => (
+                    <tr key={item.id} className="border-b last:border-b-0">
+                      <td className="px-3 py-4 font-medium">
+                        {item.product.name}
+                      </td>
+                      <td className="px-3 py-4">{item.product.sku || "—"}</td>
+                      <td className="px-3 py-4">{Number(item.quantity)}</td>
+                      <td className="px-3 py-4">
+                        ₹{Number(item.unitPrice).toFixed(2)}
+                      </td>
+                      <td className="px-3 py-4 font-medium">
+                        ₹{Number(item.total).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

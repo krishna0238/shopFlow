@@ -1,15 +1,26 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
-import MainNavigation from "@/components/main-navigation";
+import AppShell from "@/components/app-shell";
+import { ThemeProvider } from "@/components/theme-provider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Steep pairs a serif display face (Signifier) with a grotesque body face
+// (Söhne). Both are commercial, so we use their closest open equivalents.
+const bodyFont = Inter({
+  variable: "--font-body",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const displayFont = Source_Serif_4({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+
+const monoFont = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
@@ -26,23 +37,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${bodyFont.variable} ${displayFont.variable} ${monoFont.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">
-        <header className="border-b border-[var(--glass-border-subtle)] bg-[var(--glass-soft)] backdrop-blur-xl">
-          <div className="flex w-full items-center gap-8 px-5 py-4 sm:px-7 lg:px-10 xl:px-12 2xl:px-14">
-            <Link
-              href="/dashboard"
-              className="shrink-0 text-xl font-bold text-[var(--text-primary)]"
-            >
-              ShopFlow
-            </Link>
-
-            <MainNavigation />
-          </div>
-        </header>
-
-        <main className="w-full">{children}</main>
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+        </ThemeProvider>
       </body>
     </html>
   );

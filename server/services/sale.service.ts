@@ -1,3 +1,4 @@
+
 import { prisma } from "@/lib/prisma";
 import { AuditService } from "@/server/services/audit.service";
 import type { CreateSaleInput } from "@/server/validation/sale.validation";
@@ -28,9 +29,7 @@ export class SaleService {
   ) {
     return prisma.$transaction(async (tx) => {
       if (input.paymentMode === "CREDIT" && !input.customerId) {
-        throw new Error(
-          "Customer is required for credit sales"
-        );
+        throw new Error("Customer is required for credit sales");
       }
 
       if (input.customerId) {
@@ -46,14 +45,30 @@ export class SaleService {
         }
       }
 
-      let totalAmount = 0;
-
-      const saleItemsData = [];
+      // Aggregate quantities so repeated lines for the same product
+      // are checked against their combined quantity.
+      const requestedQuantities = new Map<string, number>();
 
       for (const item of input.items) {
+        const previousQuantity =
+          requestedQuantities.get(item.productId) ?? 0;
+
+        requestedQuantities.set(
+          item.productId,
+          previousQuantity + item.quantity
+        );
+      }
+
+      // Load and validate each distinct product once.
+      const products = new Map<
+        string,
+        Awaited<ReturnType<typeof tx.product.findFirst>>
+      >();
+
+      for (const productId of requestedQuantities.keys()) {
         const product = await tx.product.findFirst({
           where: {
-            id: item.productId,
+            id: productId,
             businessId,
             isActive: true,
           },
@@ -63,24 +78,87 @@ export class SaleService {
           throw new Error("Product not found");
         }
 
-        const currentStock = Number(product.stockQuantity);
+        products.set(productId, product);
+      }
 
-        if (currentStock < item.quantity) {
+      // Calculate line totals on the server.
+      const saleItemsData = input.items.map((item) => {
+        const product = products.get(item.productId);
+
+        if (!product) {
+          throw new Error("Product not found");
+        }
+
+        return {
+          product,
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.quantity * item.unitPrice,
+        };
+      });
+
+      // Compute subtotal and per-line GST
+      const subtotal = saleItemsData.reduce(
+        (sum, item) => sum + item.total,
+        0
+      );
+
+      const taxBreakdown: Record<
+        string,
+        { rate: number; cgst: number; sgst: number; total: number }
+      > = {};
+      let taxAmount = 0;
+
+      for (const item of saleItemsData) {
+        const rate = Number(item.product.gstRate ?? 0);
+        if (rate > 0) {
+          const lineTax = (item.total * rate) / 100;
+          const half = lineTax / 2;
+          const key = `${rate}%`;
+          if (!taxBreakdown[key]) {
+            taxBreakdown[key] = { rate, cgst: 0, sgst: 0, total: 0 };
+          }
+          taxBreakdown[key].cgst += half;
+          taxBreakdown[key].sgst += half;
+          taxBreakdown[key].total += lineTax;
+          taxAmount += lineTax;
+        }
+      }
+
+      const totalAmount = subtotal + taxAmount;
+
+      // Atomically deduct each product's combined quantity.
+      // The stock condition is checked by PostgreSQL as part of
+      // the update, protecting against concurrent sales.
+      for (const [productId, requestedQuantity] of requestedQuantities) {
+        const product = products.get(productId);
+
+        if (!product) {
+          throw new Error("Product not found");
+        }
+
+        const result = await tx.product.updateMany({
+          where: {
+            id: productId,
+            businessId,
+            isActive: true,
+            stockQuantity: {
+              gte: requestedQuantity,
+            },
+          },
+          data: {
+            stockQuantity: {
+              decrement: requestedQuantity,
+            },
+          },
+        });
+
+        if (result.count !== 1) {
           throw new Error(
             `Insufficient stock for product: ${product.name}`
           );
         }
-
-        const itemTotal = item.quantity * item.unitPrice;
-
-        totalAmount += itemTotal;
-
-        saleItemsData.push({
-          product,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          total: itemTotal,
-        });
       }
 
       const sale = await tx.sale.create({
@@ -88,6 +166,10 @@ export class SaleService {
           businessId,
           customerId: input.customerId,
           paymentMode: input.paymentMode,
+          subtotal,
+          taxAmount,
+          taxBreakdown:
+            Object.keys(taxBreakdown).length > 0 ? taxBreakdown : undefined,
           totalAmount,
         },
       });
@@ -95,22 +177,10 @@ export class SaleService {
       const saleItems = [];
 
       for (const item of saleItemsData) {
-        const newStockQuantity =
-          Number(item.product.stockQuantity) - item.quantity;
-
-        await tx.product.update({
-          where: {
-            id: item.product.id,
-          },
-          data: {
-            stockQuantity: newStockQuantity,
-          },
-        });
-
         const saleItem = await tx.saleItem.create({
           data: {
             saleId: sale.id,
-            productId: item.product.id,
+            productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             total: item.total,
@@ -123,7 +193,7 @@ export class SaleService {
         await tx.inventoryMovement.create({
           data: {
             businessId,
-            productId: item.product.id,
+            productId: item.productId,
             type: "SALE",
             quantity: -item.quantity,
             referenceId: sale.id,
@@ -154,6 +224,8 @@ export class SaleService {
           entityId: sale.id,
           details: {
             paymentMode: input.paymentMode,
+            subtotal,
+            taxAmount,
             totalAmount,
             customerId: input.customerId ?? null,
             itemCount: input.items.length,

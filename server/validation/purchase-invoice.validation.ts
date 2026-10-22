@@ -1,11 +1,10 @@
-
 import { z } from "zod";
 
 export const createPurchaseInvoiceSchema = z.object({
   supplierId: z.string().uuid(),
   invoiceNumber: z.string().trim().min(1).optional(),
   invoiceDate: z.coerce.date().optional(),
-  totalAmount: z.number().nonnegative(),
+  totalAmount: z.number().nonnegative().optional(),
 });
 
 export const confirmPurchaseInvoiceSchema = z.object({

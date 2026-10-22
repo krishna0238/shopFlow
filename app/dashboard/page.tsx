@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type DashboardSummary = {
@@ -34,12 +35,9 @@ type DashboardSummary = {
 
 export default function DashboardPage() {
   const router = useRouter();
-
-  const [summary, setSummary] =
-    useState<DashboardSummary | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] =
-    useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,9 +59,10 @@ export default function DashboardPage() {
 
         if (!cancelled) {
           setSummary(data.summary);
+          setError(null);
         }
-      } catch (error) {
-        console.error("Dashboard loading failed:", error);
+      } catch (err) {
+        console.error("Dashboard loading failed:", err);
 
         if (!cancelled) {
           setError("Unable to load dashboard data.");
@@ -84,19 +83,14 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-14">
-        <div className="w-full">
-          <div className="mb-8">
-            <div className="h-3 w-32 animate-pulse rounded-full bg-black/[0.06]" />
-            <div className="mt-4 h-10 w-52 animate-pulse rounded-xl bg-black/[0.06]" />
-            <div className="mt-3 h-5 w-80 max-w-full rounded-lg bg-black/[0.04]" />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
+      <main className="py-2">
+        <div className="mx-auto max-w-[1600px] space-y-6">
+          <div className="h-16 animate-pulse rounded-2xl bg-slate-100" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
               <div
-                key={index}
-                className="h-32 animate-pulse rounded-3xl border border-black/[0.06] bg-white/[0.28]"
+                key={i}
+                className="h-36 animate-pulse rounded-3xl bg-slate-100"
               />
             ))}
           </div>
@@ -107,297 +101,549 @@ export default function DashboardPage() {
 
   if (error || !summary) {
     return (
-      <main className="min-h-screen w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-14">
-        <div className="w-full">
-          <div className="shopflow-glass rounded-3xl border border-red-500/20 p-6">
-            <p className="text-sm font-medium text-red-600">
-              Dashboard error
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              {error ?? "No dashboard data available."}
-            </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-4 rounded-lg border border-black/10 px-4 py-2 text-sm font-medium"
-            >
-              Try again
-            </button>
-          </div>
-        </div>
+      <main className="py-2">
+        <section className="mx-auto max-w-2xl rounded-3xl bg-white p-8 border border-[var(--border)]">
+          <h1 className="text-[44px] leading-[1.1] tracking-[-0.03em]">
+            Dashboard unavailable
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            {error ?? "No dashboard data available."}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-medium text-white hover:bg-[var(--accent-hover)]"
+          >
+            Try again
+          </button>
+        </section>
       </main>
     );
   }
 
+  const metrics = [
+    {
+      title: "Total Sales",
+      value: formatCurrency(summary.salesTotal),
+      note: `${summary.salesCount.toLocaleString("en-IN")} recorded sales`,
+      icon: "₹",
+      color: "blue",
+    },
+    {
+      title: "Products",
+      value: summary.productCount.toLocaleString("en-IN"),
+      note: "Products in catalogue",
+      icon: "▤",
+      color: "blue",
+    },
+    {
+      title: "Customers",
+      value: summary.customerCount.toLocaleString("en-IN"),
+      note: "Registered customers",
+      icon: "♙",
+      color: "blue",
+    },
+    {
+      title: "Outstanding Credit",
+      value: formatCurrency(summary.outstandingCredit),
+      note: "Credit to follow up",
+      icon: "₹",
+      color: "amber",
+    },
+  ];
+
+  const salesForChart = [...summary.recentSales]
+  .slice(-7)
+  .reverse()
+  .map((sale) => ({
+    id: sale.id,
+    amount: Math.max(0, Number(sale.totalAmount) || 0),
+    date: new Date(sale.createdAt),
+  }));
+
+  const chartMax = Math.max(
+    1,
+    ...salesForChart.map((sale) => sale.amount),
+  );
+
+  const chartTotal = salesForChart.reduce(
+    (total, sale) => total + sale.amount,
+    0,
+  );
+
   return (
-    <main className="relative min-h-screen w-full overflow-hidden px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-14">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-white/45 blur-3xl dark:bg-white/[0.018]" />
-        <div className="absolute right-0 top-24 h-64 w-64 rounded-full bg-white/35 blur-3xl dark:bg-white/[0.012]" />
-        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-white/25 blur-3xl dark:bg-white/[0.01]" />
-      </div>
+    <div className="text-[var(--text-primary)]">
+      <div className="mx-auto w-full max-w-none space-y-6">
+        {/* Header */}
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-[44px] leading-[1.1] tracking-[-0.03em]">
+              Dashboard
+            </h1>
+            <p className="mt-2 text-[17px] text-[var(--text-secondary)]">
+              Let&apos;s see how your shop is doing
+            </p>
+          </div>
 
-      <div className="relative w-full">
-        <section className="mb-8">
-          <p className="text-[11px] font-semibold tracking-[0.2em] text-[var(--text-muted)]">
-            BUSINESS OVERVIEW
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-4xl">
-            Dashboard
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)] sm:text-base">
-            Understand what is happening in your business.
-          </p>
+          
+        </header>
+
+        {/* Main dashboard grid */}
+        <section className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-12">
+          {/* Metric cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-5">
+            {metrics.map((metric) => (
+              <article
+                key={metric.title}
+                className="min-w-0 rounded-3xl bg-white p-4 sm:p-5 border border-[var(--border)]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg font-semibold ${
+                        metric.color === "amber"
+                          ? "bg-amber-50 text-amber-600"
+                          : "bg-blue-50 text-blue-600"
+                      }`}
+                    >
+                      {metric.icon}
+                    </span>
+                    <h2 className="text-base font-medium text-slate-800">
+                      {metric.title}
+                    </h2>
+                  </div>
+                  <span className="text-xl leading-none text-slate-400">
+                    ···
+                  </span>
+                </div>
+
+                <p className="mt-6 wrap-break-word text-2xl font-semibold tracking-tight text-slate-950">
+                  {metric.value}
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {metric.note}
+                </p>
+              </article>
+            ))}
+          </div>
+
+          {/* Recent sales */}
+          <section className="min-w-0 rounded-3xl bg-white p-5 sm:p-6 lg:col-span-4 border border-[var(--border)]">
+            <PanelTitle
+              title="Recent Sales"
+              subtitle="Latest transactions"
+              href="/sales"
+              linkText="View all"
+            />
+
+            <div className="mt-6 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-slate-100 pb-3 text-sm text-slate-400">
+              <span>Customer</span>
+              <span className="text-right">Amount</span>
+            </div>
+
+            {summary.recentSales.length === 0 ? (
+              <EmptyState
+                title="No sales yet"
+                description="Your recent transactions will appear here."
+                href="/sales"
+                linkText="Record a sale"
+              />
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {summary.recentSales.slice(0, 5).map((sale) => (
+                  <div
+                    key={sale.id}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3.5"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-600">
+                        {(sale.customer?.name ?? "W")
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </span>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {sale.customer?.name ?? "Walk-in customer"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {formatSaleDate(sale.createdAt)} · {sale.paymentMode}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="whitespace-nowrap text-sm font-medium text-slate-900">
+                      {formatCurrency(sale.totalAmount)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Inventory status */}
+          <section className="min-w-0 rounded-3xl bg-white p-5 sm:p-6 lg:col-span-3 border border-[var(--border)]">
+            <PanelTitle
+              title="Inventory Status"
+              subtitle="Stock needing attention"
+              href="/inventory"
+              linkText="View stock"
+            />
+
+            <div className="mt-5 space-y-5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-500">
+                  Total products
+                </span>
+                <span className="text-sm font-semibold">
+                  {summary.productCount.toLocaleString("en-IN")}
+                </span>
+              </div>
+
+              <div className="h-px bg-slate-100" />
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-500">
+                  Low-stock items
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    summary.lowStockCount > 0
+                      ? "bg-amber-50 text-amber-700"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {summary.lowStockCount}
+                </span>
+              </div>
+
+              <div className="h-px bg-slate-100" />
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-500">Suppliers</span>
+                <span className="text-sm font-semibold">
+                  {summary.supplierCount.toLocaleString("en-IN")}
+                </span>
+              </div>
+
+              <div className="h-px bg-slate-100" />
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-500">
+                  Purchase invoices
+                </span>
+                <span className="text-sm font-semibold">
+                  {summary.purchaseInvoiceCount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
+
+            <Link
+              href="/inventory"
+              className="mt-7 flex w-full items-center justify-center rounded-full bg-blue-50 px-4 py-3 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
+            >
+              Manage inventory →
+            </Link>
+          </section>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard title="Products" value={summary.productCount} />
-          <SummaryCard title="Customers" value={summary.customerCount} />
-          <SummaryCard title="Suppliers" value={summary.supplierCount} />
-          <SummaryCard title="Sales" value={summary.salesCount} />
-          <SummaryCard title="Total sales" value={`₹${summary.salesTotal}`} strong />
-          <SummaryCard
-            title="Outstanding credit"
-            value={`₹${summary.outstandingCredit}`}
-            attention={summary.outstandingCredit > 0}
-          />
-          <SummaryCard
-            title="Low stock"
-            value={summary.lowStockCount}
-            attention={summary.lowStockCount > 0}
-          />
-          <SummaryCard
-            title="Purchase invoices"
-            value={summary.purchaseInvoiceCount}
-          />
-        </section>
-
-        <section className="mt-6 grid gap-6 lg:grid-cols-2">
-          <GlassPanel>
-            <PanelHeader
-              eyebrow="ACTION REQUIRED"
-              title="Needs attention"
-              description="Items that may require action."
+        {/* Lower panels */}
+        <section className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-12">
+          {/* Low stock products */}
+          <section className="min-w-0 rounded-3xl bg-white p-5 sm:p-6 lg:col-span-5 border border-[var(--border)]">
+            <PanelTitle
+              title="Stock Alerts"
+              subtitle="Products that may need restocking"
+              href="/inventory"
+              linkText="View inventory"
             />
 
             {summary.lowStockProducts.length === 0 ? (
-              <div className="shopflow-glass-soft mt-6 rounded-2xl p-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full border border-emerald-600/10 bg-emerald-600/5">
-                    <span className="text-sm text-emerald-700">✓</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text-primary)]">
-                      Nothing requires attention
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--text-muted)]">
-                      No low-stock products right now.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-6 space-y-3">
-                {summary.lowStockProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className="shopflow-glass-soft rounded-2xl p-4 hover:bg-white/[0.38]"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                          {product.name}
-                        </p>
-                        {product.sku && (
-                          <p className="mt-1 text-xs text-[var(--text-muted)]">
-                            SKU {product.sku}
-                          </p>
-                        )}
-                      </div>
-                      <span className="rounded-full border border-amber-600/15 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-amber-700">
-                        Low stock
-                      </span>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between border-t border-black/[0.06] pt-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                          Current stock
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
-                          {product.stockQuantity}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                          Threshold
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-[var(--text-secondary)]">
-                          {product.lowStockThreshold}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </GlassPanel>
-
-          <GlassPanel>
-            <PanelHeader
-              eyebrow="RECENT ACTIVITY"
-              title="Recent sales"
-              description="The latest transactions recorded in your shop."
-            />
-
-            {summary.recentSales.length === 0 ? (
-              <div className="shopflow-glass-soft mt-6 rounded-2xl p-5">
-                <p className="text-sm text-[var(--text-muted)]">
-                  No sales yet.
+              <div className="mt-6 rounded-2xl bg-emerald-50/70 p-5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg text-emerald-600">
+                  ✓
+                </span>
+                <p className="mt-3 text-sm font-semibold text-slate-800">
+                  Stock looks good
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  There are no low-stock products to review right now.
                 </p>
               </div>
             ) : (
-              <div className="mt-6 divide-y divide-black/[0.06]">
-                {summary.recentSales.map((sale) => (
+              <div className="mt-5 divide-y divide-slate-100">
+                {summary.lowStockProducts.slice(0, 6).map((product) => (
                   <div
-                    key={sale.id}
-                    className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
+                    key={product.id}
+                    className="flex items-center justify-between gap-3 py-4 first:pt-0"
                   >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                        {sale.customer?.name ?? "Walk-in customer"}
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <PaymentModeBadge paymentMode={sale.paymentMode} />
-                        <span className="text-xs text-[var(--text-muted)]">
-                          {formatSaleDate(sale.createdAt)}
-                        </span>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-lg text-blue-600">
+                        ▤
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">
+                          {product.name}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-slate-400">
+                          {product.sku ? `SKU ${product.sku}` : "No SKU"}
+                        </p>
                       </div>
                     </div>
+
                     <div className="shrink-0 text-right">
-                      <p className="text-base font-semibold text-[var(--text-primary)]">
-                        ₹{sale.totalAmount}
+                      <p className="text-sm font-semibold text-amber-600">
+                        {product.stockQuantity}
                       </p>
-                      <p className="mt-1 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
-                        Sale
+                      <p className="mt-1 text-xs text-slate-400">
+                        Threshold: {product.lowStockThreshold}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </GlassPanel>
+          </section>
+
+          {/* Sales activity chart */}
+          <section className="min-w-0 rounded-3xl bg-white p-5 sm:p-6 lg:col-span-7 border border-[var(--border)]">
+            <PanelTitle
+              title="Sales Activity"
+              subtitle="Your latest recorded transactions"
+              href="/sales"
+              linkText="View sales"
+            />
+
+            <div className="mt-6 flex flex-wrap items-start justify-between gap-5">
+              <div>
+                <p className="text-2xl font-semibold tracking-tight text-slate-900">
+                  {formatCurrency(chartTotal)}
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  Total of the transactions shown below
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4 text-xs text-slate-500">
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[var(--peach)]" />
+                  Sales
+                </span>
+              </div>
+            </div>
+
+            {salesForChart.length === 0 ? (
+              <div className="mt-8 flex min-h-48 flex-col items-center justify-center rounded-2xl bg-slate-50 text-center">
+                <p className="text-sm font-medium text-slate-700">
+                  Your sales chart will appear here
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  Record sales to start building your activity view.
+                </p>
+                <Link
+                  href="/sales"
+                  className="mt-4 text-sm font-semibold text-blue-600 hover:underline"
+                >
+                  Record a sale →
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="mt-7 flex h-56 items-end gap-2 border-b border-slate-100 px-1 pt-3 sm:gap-4">
+                  {salesForChart.map((sale) => {
+                    const height = Math.max(
+                      8,
+                      (sale.amount / chartMax) * 100,
+                    );
+
+                    return (
+                      <div
+                        key={sale.id}
+                        className="group flex h-full min-w-0 flex-1 flex-col justify-end"
+                        title={`${formatSaleDate(sale.date.toISOString())}: ${formatCurrency(sale.amount)}`}
+                      >
+                        <div className="mb-2 hidden text-center text-[10px] text-slate-500 group-hover:block">
+                          {formatCurrency(sale.amount)}
+                        </div>
+                        <div
+                          className="w-full rounded-t-lg bg-[var(--peach)] transition-colors group-hover:bg-[var(--sienna)]"
+                          style={{ height: `${height}%` }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3 flex gap-2 sm:gap-4">
+                  {salesForChart.map((sale) => (
+                    <div
+                      key={sale.id}
+                      className="min-w-0 flex-1 text-center text-[10px] text-slate-400"
+                    >
+                      <span className="block truncate">
+                        {sale.date.toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-5 text-xs leading-5 text-slate-400">
+                  Each bar represents one of your latest recorded sales. This
+                  chart uses actual transaction amounts, not estimated targets.
+                </p>
+              </>
+            )}
+          </section>
         </section>
+
+        {/* Quick links */}
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <QuickLink
+            href="/sales"
+            icon="₹"
+            title="Sales"
+            description="Record a transaction"
+          />
+          <QuickLink
+            href="/inventory"
+            icon="▤"
+            title="Inventory"
+            description="Manage products"
+          />
+          <QuickLink
+            href="/customers"
+            icon="♙"
+            title="Customers"
+            description="Customer records"
+          />
+          <QuickLink
+            href="/purchases"
+            icon="↗"
+            title="Purchases"
+            description="Manage invoices"
+          />
+        </section>
+
+        <footer className="py-3 text-center text-xs text-slate-400">
+          ShopFlow · Your shop, all in one place
+        </footer>
       </div>
-    </main>
+    </div>
   );
 }
 
-type SummaryCardProps = {
-  title: string;
-  value: string | number;
-  strong?: boolean;
-  attention?: boolean;
-};
-
-function SummaryCard({
+function PanelTitle({
   title,
-  value,
-  strong = false,
-  attention = false,
-}: SummaryCardProps) {
-  return (
-    <div className="shopflow-glass group relative overflow-hidden rounded-3xl p-5 hover:-translate-y-0.5">
-      <div className="absolute inset-x-0 top-0 h-px bg-white/70 dark:bg-white/[0.04]" />
-      <p className="text-sm font-medium text-[var(--text-secondary)]">
-        {title}
-      </p>
-      <p
-        className={`mt-4 tracking-tight ${
-          strong
-            ? "text-3xl font-semibold text-[var(--text-primary)]"
-            : attention
-              ? "text-3xl font-semibold text-[var(--accent-strong)]"
-              : "text-3xl font-semibold text-[var(--text-primary)]"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-type GlassPanelProps = {
-  children: React.ReactNode;
-};
-
-function GlassPanel({ children }: GlassPanelProps) {
-  return (
-    <div className="shopflow-glass-strong rounded-3xl p-5 sm:p-6">
-      {children}
-    </div>
-  );
-}
-
-type PanelHeaderProps = {
-  eyebrow: string;
+  subtitle,
+  href,
+  linkText,
+}: {
   title: string;
-  description: string;
-};
+  subtitle: string;
+  href: string;
+  linkText: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="text-[22px] leading-[1.2] tracking-[-0.02em]">
+          {title}
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-slate-400">
+          {subtitle}
+        </p>
+      </div>
+      <Link
+        href={href}
+        className="shrink-0 text-[14px] text-[var(--text-primary)] underline-offset-4 hover:underline"
+      >
+        {linkText} →
+      </Link>
+    </div>
+  );
+}
 
-function PanelHeader({
-  eyebrow,
+function EmptyState({
   title,
   description,
-}: PanelHeaderProps) {
+  href,
+  linkText,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  linkText: string;
+}) {
   return (
-    <div>
-      <p className="text-[10px] font-semibold tracking-[0.2em] text-[var(--text-muted)]">
-        {eyebrow}
-      </p>
-      <h2 className="mt-2 text-xl font-semibold tracking-tight text-[var(--text-primary)]">
-        {title}
-      </h2>
-      <p className="mt-1 text-sm text-[var(--text-secondary)]">
-        {description}
-      </p>
+    <div className="py-8">
+      <p className="text-sm font-medium text-slate-700">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-400">{description}</p>
+      <Link
+        href={href}
+        className="mt-4 inline-block text-xs font-semibold text-blue-600 hover:underline"
+      >
+        {linkText} →
+      </Link>
     </div>
   );
 }
 
-type PaymentModeBadgeProps = {
-  paymentMode: "CASH" | "UPI" | "CREDIT";
-};
-
-function PaymentModeBadge({ paymentMode }: PaymentModeBadgeProps) {
-  const styles = {
-    CASH:
-      "border-black/[0.08] bg-black/[0.035] text-[var(--text-secondary)]",
-    UPI: "border-sky-600/10 bg-sky-500/5 text-sky-700",
-    CREDIT:
-      "border-amber-600/15 bg-amber-500/10 text-amber-700",
-  };
-
+function QuickLink({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string;
+  icon: string;
+  title: string;
+  description: string;
+}) {
   return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${styles[paymentMode]}`}
+    <Link
+      href={href}
+      className="flex min-w-0 items-center gap-3 rounded-3xl bg-white p-4 transition hover:border-[var(--border-strong)] border border-[var(--border)]"
     >
-      {paymentMode}
-    </span>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-lg font-semibold text-blue-600">
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-slate-800">
+          {title}
+        </span>
+        <span className="mt-1 block truncate text-xs text-slate-400">
+          {description}
+        </span>
+      </span>
+    </Link>
   );
 }
 
-function formatSaleDate(dateString: string) {
-  const date = new Date(dateString);
 
-  if (Number.isNaN(date.getTime())) {
-    return "";
+function formatCurrency(value: string | number) {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return `₹${value}`;
   }
 
-  return date.toLocaleDateString(undefined, {
+  return `₹${amount.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatSaleDate(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
   });

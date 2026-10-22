@@ -1,9 +1,9 @@
+
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-
-const BUSINESS_ID = "3b4fc147-7ea2-495f-a64e-878dfdabc158";
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 
 type ProductCategory = {
   id: string;
@@ -55,12 +55,11 @@ type PriceHistoryResponse = {
   history: PriceHistoryEntry[];
 };
 
-export default function ProductDetailsPage({
-  params,
-}: {
-  params: Promise<{ productId: string }>;
-}) {
-  const [productId, setProductId] = useState("");
+export default function ProductDetailsPage() {
+  const params = useParams<{ productId: string }>();
+  const router = useRouter();
+  const productId = params.productId;
+
   const [product, setProduct] = useState<Product | null>(null);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
@@ -68,23 +67,14 @@ export default function ProductDetailsPage({
     purchasePrice: number;
     sellingPrice: number;
   } | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [deactivating, setDeactivating] = useState(false);
   const [error, setError] = useState("");
   const [deactivateError, setDeactivateError] = useState("");
 
-  useEffect(() => {
-    params.then(({ productId: id }) => {
-      setProductId(id);
-    });
-  }, [params]);
-
-  useEffect(() => {
-    if (!productId) {
-      return;
-    }
-
-    async function loadProductDetails() {
+  const loadProductDetails = useCallback(
+    async (id: string) => {
       try {
         setLoading(true);
         setError("");
@@ -94,14 +84,23 @@ export default function ProductDetailsPage({
           movementsResponse,
           priceHistoryResponse,
         ] = await Promise.all([
-          fetch(`/api/products?businessId=${BUSINESS_ID}`),
+          fetch("/api/products"),
+          fetch(`/api/inventory?productId=${encodeURIComponent(id)}`),
           fetch(
-            `/api/inventory?businessId=${BUSINESS_ID}&productId=${productId}`
-          ),
-          fetch(
-            `/api/products/price-history?businessId=${BUSINESS_ID}&productId=${productId}`
+            `/api/products/price-history?productId=${encodeURIComponent(id)}`
           ),
         ]);
+
+        const responses = [
+          productsResponse,
+          movementsResponse,
+          priceHistoryResponse,
+        ];
+
+        if (responses.some((response) => response.status === 401)) {
+          router.replace("/login");
+          return;
+        }
 
         if (!productsResponse.ok) {
           throw new Error("Failed to load products");
@@ -120,12 +119,12 @@ export default function ProductDetailsPage({
         const priceHistoryData: PriceHistoryResponse =
           await priceHistoryResponse.json();
 
-        const products = Array.isArray(productsData)
+        const products: Product[] = Array.isArray(productsData)
           ? productsData
           : productsData.products ?? [];
 
         const selectedProduct = products.find(
-          (item: Product) => item.id === productId
+          (item) => item.id === id
         );
 
         if (!selectedProduct) {
@@ -134,12 +133,12 @@ export default function ProductDetailsPage({
 
         setProduct(selectedProduct);
 
-        const movementList = Array.isArray(movementsData)
-          ? movementsData
-          : movementsData.movements ?? [];
+        const movementList: InventoryMovement[] =
+          Array.isArray(movementsData)
+            ? movementsData
+            : movementsData.movements ?? [];
 
         setMovements(movementList);
-
         setPriceHistory(priceHistoryData.history ?? []);
         setCurrentPrices(priceHistoryData.currentPrices);
       } catch (err) {
@@ -151,10 +150,24 @@ export default function ProductDetailsPage({
       } finally {
         setLoading(false);
       }
-    }
+    },
+    [router]
+  );
 
-    loadProductDetails();
-  }, [productId]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled && productId) {
+        void loadProductDetails(productId);
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [productId, loadProductDetails]);
 
   async function handleDeactivateProduct() {
     if (!product) {
@@ -179,12 +192,16 @@ export default function ProductDetailsPage({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          businessId: BUSINESS_ID,
           productId: product.id,
         }),
       });
 
       const data = await response.json();
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -192,7 +209,7 @@ export default function ProductDetailsPage({
         );
       }
 
-      window.location.href = "/inventory";
+      router.push("/inventory");
     } catch (err) {
       setDeactivateError(
         err instanceof Error
@@ -206,23 +223,21 @@ export default function ProductDetailsPage({
 
   if (loading) {
     return (
-      <main style={{ padding: "2rem" }}>
-        <p>Loading product details...</p>
+      <main>
+        <p className="text-[var(--text-secondary)]">Loading product details...</p>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main style={{ padding: "2rem" }}>
-        <h1>Product Details</h1>
-
-        <p style={{ color: "red", marginTop: "1rem" }}>
-          {error}
-        </p>
-
-        <div style={{ marginTop: "1.5rem" }}>
-          <Link href="/inventory">Back to Inventory</Link>
+      <main>
+        <h1 className="text-[40px] leading-[1.1] tracking-[-0.03em]">Product details</h1>
+        <p className="mt-4 text-red-600">{error}</p>
+        <div className="mt-6">
+          <Link href="/inventory" className="sf-link">
+            ← Back to inventory
+          </Link>
         </div>
       </main>
     );
@@ -230,11 +245,12 @@ export default function ProductDetailsPage({
 
   if (!product) {
     return (
-      <main style={{ padding: "2rem" }}>
-        <h1>Product not found</h1>
-
-        <div style={{ marginTop: "1.5rem" }}>
-          <Link href="/inventory">Back to Inventory</Link>
+      <main>
+        <h1 className="text-[40px] leading-[1.1] tracking-[-0.03em]">Product not found</h1>
+        <div className="mt-6">
+          <Link href="/inventory" className="sf-link">
+            ← Back to inventory
+          </Link>
         </div>
       </main>
     );
@@ -248,304 +264,139 @@ export default function ProductDetailsPage({
       ? "Low stock"
       : "In stock";
 
-  return (
-    <main style={{ padding: "2rem", maxWidth: "1100px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h1>{product.name}</h1>
+  const isLow = stockQuantity <= lowStockThreshold;
 
-          <p style={{ marginTop: "0.5rem", color: "#666" }}>
+  const details: { label: string; value: React.ReactNode }[] = [
+    { label: "Product", value: product.name },
+    { label: "Category", value: product.category?.name || "—" },
+    { label: "SKU", value: product.sku || "—" },
+    {
+      label: "Purchase price",
+      value: `₹${Number(
+        currentPrices?.purchasePrice ?? product.purchasePrice
+      ).toFixed(2)}`,
+    },
+    {
+      label: "Selling price",
+      value: `₹${Number(
+        currentPrices?.sellingPrice ?? product.sellingPrice
+      ).toFixed(2)}`,
+    },
+    { label: "Current stock", value: stockQuantity },
+    { label: "Low stock threshold", value: lowStockThreshold },
+    {
+      label: "Status",
+      value: (
+        <span
+          className={`inline-flex rounded-full px-3 py-1 text-sm ${
+            isLow
+              ? "bg-amber-100 text-amber-800"
+              : "bg-emerald-100 text-emerald-800"
+          }`}
+        >
+          {stockStatus}
+        </span>
+      ),
+    },
+    { label: "Active", value: product.isActive ? "Yes" : "No" },
+  ];
+
+  return (
+    <main className="mx-auto max-w-[1100px]">
+      <Link
+        href="/inventory"
+        className="text-[14px] text-[var(--text-secondary)] underline-offset-4 hover:text-[var(--text-primary)] hover:underline"
+      >
+        ← Back to inventory
+      </Link>
+
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[40px] leading-[1.1] tracking-[-0.03em]">
+            {product.name}
+          </h1>
+          <p className="mt-2 text-[17px] text-[var(--text-secondary)]">
             Product details and inventory history
           </p>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <Link href="/inventory">Back to Inventory</Link>
-
-          {product.isActive && (
-            <button
-              type="button"
-              onClick={handleDeactivateProduct}
-              disabled={deactivating}
-              style={{
-                padding: "0.6rem 1rem",
-                border: "1px solid #b91c1c",
-                borderRadius: "6px",
-                backgroundColor: "#fff",
-                color: "#b91c1c",
-                cursor: deactivating
-                  ? "not-allowed"
-                  : "pointer",
-                opacity: deactivating ? 0.6 : 1,
-              }}
-            >
-              {deactivating
-                ? "Deactivating..."
-                : "Deactivate Product"}
-            </button>
-          )}
-        </div>
+        {product.isActive && (
+          <button
+            type="button"
+            onClick={handleDeactivateProduct}
+            disabled={deactivating}
+            className="h-10 rounded-full border border-red-600 px-5 text-[14px] text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {deactivating ? "Deactivating..." : "Deactivate product"}
+          </button>
+        )}
       </div>
 
       {deactivateError && (
         <p
-          style={{
-            marginTop: "1rem",
-            color: "#b91c1c",
-          }}
+          role="alert"
+          className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
           {deactivateError}
         </p>
       )}
 
-      <section
-        style={{
-          marginTop: "2rem",
-          padding: "1.5rem",
-          border: "1px solid #ddd",
-          borderRadius: "8px",
-        }}
-      >
-        <h2>Product Information</h2>
+      <section className="mt-8 rounded-3xl border border-[var(--border)] bg-white p-6 sm:p-8">
+        <h2 className="text-2xl">Product information</h2>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: "1.5rem",
-            marginTop: "1.5rem",
-          }}
-        >
-          <div>
-            <strong>Product</strong>
-            <p>{product.name}</p>
-          </div>
-
-          <div>
-            <strong>Category</strong>
-            <p>{product.category?.name || "—"}</p>
-          </div>
-
-          <div>
-            <strong>SKU</strong>
-            <p>{product.sku || "—"}</p>
-          </div>
-
-          <div>
-            <strong>Purchase Price</strong>
-            <p>
-              ₹
-              {Number(
-                currentPrices?.purchasePrice ??
-                  product.purchasePrice
-              ).toFixed(2)}
-            </p>
-          </div>
-
-          <div>
-            <strong>Selling Price</strong>
-            <p>
-              ₹
-              {Number(
-                currentPrices?.sellingPrice ??
-                  product.sellingPrice
-              ).toFixed(2)}
-            </p>
-          </div>
-
-          <div>
-            <strong>Current Stock</strong>
-            <p>{stockQuantity}</p>
-          </div>
-
-          <div>
-            <strong>Low Stock Threshold</strong>
-            <p>{lowStockThreshold}</p>
-          </div>
-
-          <div>
-            <strong>Status</strong>
-            <p>{stockStatus}</p>
-          </div>
-
-          <div>
-            <strong>Active</strong>
-            <p>{product.isActive ? "Yes" : "No"}</p>
-          </div>
-        </div>
+        <dl className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-6 gap-y-7">
+          {details.map((item) => (
+            <div key={item.label}>
+              <dt className="text-[14px] text-[var(--text-muted)]">
+                {item.label}
+              </dt>
+              <dd className="mt-1 text-[17px] font-medium">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
-      <section
-        style={{
-          marginTop: "2rem",
-          padding: "1.5rem",
-          border: "1px solid #ddd",
-          borderRadius: "8px",
-        }}
-      >
-        <h2>Price History</h2>
+      <section className="mt-6 rounded-3xl border border-[var(--border)] bg-white p-6 sm:p-8">
+        <h2 className="text-2xl">Price history</h2>
 
-        <p style={{ marginTop: "0.5rem", color: "#666" }}>
-          Historical purchase and selling prices recorded from
-          confirmed purchases and completed sales.
+        <p className="mt-2 text-[15px] text-[var(--text-secondary)]">
+          Historical purchase and selling prices recorded from confirmed
+          purchases and completed sales.
         </p>
 
         {priceHistory.length === 0 ? (
-          <p style={{ marginTop: "1rem" }}>
+          <p className="mt-6 text-[var(--text-secondary)]">
             No price history recorded for this product.
           </p>
         ) : (
-          <div
-            style={{
-              overflowX: "auto",
-              marginTop: "1rem",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                minWidth: "900px",
-              }}
-            >
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-left text-sm">
               <thead>
-                <tr>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Date
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Type
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "right",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Price
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "right",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Quantity
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Reference
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Payment
-                  </th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-3 py-3">Date</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-3 py-3 text-right">Price</th>
+                  <th className="px-3 py-3 text-right">Quantity</th>
+                  <th className="px-3 py-3">Reference</th>
+                  <th className="px-3 py-3">Payment</th>
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody className="divide-y divide-[var(--border)]">
                 {priceHistory.map((entry) => (
                   <tr key={entry.id}>
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
-                      {new Date(
-                        entry.date
-                      ).toLocaleString()}
+                    <td className="px-3 py-3.5">
+                      {new Date(entry.date).toLocaleString()}
                     </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
-                      {entry.type}
-                    </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                        textAlign: "right",
-                      }}
-                    >
+                    <td className="px-3 py-3.5">{entry.type}</td>
+                    <td className="px-3 py-3.5 text-right">
                       ₹{Number(entry.price).toFixed(2)}
                     </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                        textAlign: "right",
-                      }}
-                    >
+                    <td className="px-3 py-3.5 text-right">
                       {Number(entry.quantity)}
                     </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
-                      {entry.reference}
-                    </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
+                    <td className="px-3 py-3.5">{entry.reference}</td>
+                    <td className="px-3 py-3.5">
                       {entry.paymentMode || "—"}
                     </td>
                   </tr>
@@ -556,131 +407,40 @@ export default function ProductDetailsPage({
         )}
       </section>
 
-      <section style={{ marginTop: "2rem" }}>
-        <h2>Stock Movement History</h2>
+      <section className="mt-6 rounded-3xl border border-[var(--border)] bg-white p-6 sm:p-8">
+        <h2 className="text-2xl">Stock movement history</h2>
 
         {movements.length === 0 ? (
-          <p style={{ marginTop: "1rem" }}>
+          <p className="mt-6 text-[var(--text-secondary)]">
             No stock movements recorded for this product.
           </p>
         ) : (
-          <div
-            style={{
-              overflowX: "auto",
-              marginTop: "1rem",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                minWidth: "750px",
-              }}
-            >
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full min-w-[750px] border-collapse text-left text-sm">
               <thead>
-                <tr>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Date
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Type
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "right",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Quantity
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Note
-                  </th>
-
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderBottom: "1px solid #ddd",
-                    }}
-                  >
-                    Reference
-                  </th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-3 py-3">Date</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-3 py-3 text-right">Quantity</th>
+                  <th className="px-3 py-3">Note</th>
+                  <th className="px-3 py-3">Reference</th>
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody className="divide-y divide-[var(--border)]">
                 {movements.map((movement) => (
                   <tr key={movement.id}>
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
-                      {new Date(
-                        movement.createdAt
-                      ).toLocaleString()}
+                    <td className="px-3 py-3.5">
+                      {new Date(movement.createdAt).toLocaleString()}
                     </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
-                      {movement.type}
-                    </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                        textAlign: "right",
-                      }}
-                    >
+                    <td className="px-3 py-3.5">{movement.type}</td>
+                    <td className="px-3 py-3.5 text-right">
                       {Number(movement.quantity)}
                     </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
+                    <td className="px-3 py-3.5">
                       {movement.note || "—"}
                     </td>
-
-                    <td
-                      style={{
-                        padding: "0.75rem",
-                        borderBottom: "1px solid #eee",
-                        fontFamily: "monospace",
-                        fontSize: "0.85rem",
-                      }}
-                    >
+                    <td className="px-3 py-3.5 font-mono text-[13px]">
                       {movement.referenceId || "—"}
                     </td>
                   </tr>

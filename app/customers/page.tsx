@@ -1,9 +1,13 @@
+
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
-
-const BUSINESS_ID = "3b4fc147-7ea2-495f-a64e-878dfdabc158";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 type Customer = {
   id: string;
@@ -30,15 +34,12 @@ export default function CustomersPage() {
   const [createMessage, setCreateMessage] = useState("");
   const [createError, setCreateError] = useState("");
 
-  async function loadCustomers() {
+  const loadCustomers = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await fetch(
-        `/api/customers?businessId=${BUSINESS_ID}`
-      );
-
+      const response = await fetch("/api/customers");
       const data = await response.json();
 
       if (!response.ok) {
@@ -48,23 +49,26 @@ export default function CustomersPage() {
       }
 
       const loadedCustomers: Customer[] = data.customers;
-
       setCustomers(loadedCustomers);
 
       const balanceEntries = await Promise.all(
         loadedCustomers.map(async (customer) => {
-          const creditResponse = await fetch(
-            `/api/credit?businessId=${BUSINESS_ID}&customerId=${customer.id}`
-          );
+          try {
+            const creditResponse = await fetch(
+              `/api/credit?customerId=${encodeURIComponent(customer.id)}`
+            );
 
-          if (!creditResponse.ok) {
+            if (!creditResponse.ok) {
+              return [customer.id, 0] as const;
+            }
+
+            const creditData: CreditResponse =
+              await creditResponse.json();
+
+            return [customer.id, creditData.balance] as const;
+          } catch {
             return [customer.id, 0] as const;
           }
-
-          const creditData: CreditResponse =
-            await creditResponse.json();
-
-          return [customer.id, creditData.balance] as const;
         })
       );
 
@@ -78,13 +82,21 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadCustomers();
   }, []);
 
-  async function handleCreateCustomer(event: FormEvent) {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadCustomers();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadCustomers]);
+
+  async function handleCreateCustomer(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     setCreateMessage("");
@@ -104,7 +116,6 @@ export default function CustomersPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          businessId: BUSINESS_ID,
           name: name.trim(),
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
@@ -139,31 +150,29 @@ export default function CustomersPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen p-6">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-gray-400">
-            Loading customers...
-          </p>
-        </div>
-      </main>
+      <div className="space-y-6">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
+        <div className="shopflow-glass h-64 animate-pulse rounded-2xl" />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Customers
-          </h1>
+    <div className="space-y-8">
+      <div>
+        <p className="text-[10px] font-bold text-[var(--accent)]">
+          Khata & Customer Directory
+        </p>
+        <h1 className="mt-2 text-[40px] leading-[1.1] tracking-[-0.03em] text-[var(--text-primary)]">
+          Customers
+        </h1>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          Manage customer accounts, outstanding credit, and payment settlements.
+        </p>
+      </div>
 
-          <p className="mt-2 text-gray-400">
-            Manage customers and view their credit history.
-          </p>
-        </div>
-
-        <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold">
+        <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900">
+          <h2 className="mb-4 text-2xl font-semibold">
             Add Customer
           </h2>
 
@@ -183,7 +192,7 @@ export default function CustomersPage() {
                   setName(event.target.value)
                 }
                 placeholder="Customer name"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-gray-900"
               />
             </div>
 
@@ -199,7 +208,7 @@ export default function CustomersPage() {
                   setPhone(event.target.value)
                 }
                 placeholder="Phone number"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-gray-900"
               />
             </div>
 
@@ -215,7 +224,7 @@ export default function CustomersPage() {
                   setEmail(event.target.value)
                 }
                 placeholder="Email address"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-gray-900"
               />
             </div>
 
@@ -223,7 +232,7 @@ export default function CustomersPage() {
               <button
                 type="submit"
                 disabled={creating}
-                className="rounded-md bg-black px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full bg-black px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {creating ? "Creating..." : "Add Customer"}
               </button>
@@ -231,26 +240,28 @@ export default function CustomersPage() {
           </form>
 
           {createMessage && (
-            <p className="mt-4 text-green-600">
+            <p role="status" className="mt-4 text-green-600">
               {createMessage}
             </p>
           )}
 
           {createError && (
-            <p className="mt-4 text-red-600">
+            <p role="alert" className="mt-4 text-red-600">
               {createError}
             </p>
           )}
         </section>
 
         {error && (
-          <div className="mb-6 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-            <p className="text-red-600">{error}</p>
+          <div className="mb-6 rounded-lg border bg-white p-6 text-gray-900">
+            <p role="alert" className="text-red-600">
+              {error}
+            </p>
           </div>
         )}
 
-        <section className="rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold">
+        <section className="rounded-lg border bg-white p-6 text-gray-900">
+          <h2 className="mb-4 text-2xl font-semibold">
             Customer List
           </h2>
 
@@ -266,19 +277,15 @@ export default function CustomersPage() {
                     <th className="px-4 py-3 font-semibold text-gray-900">
                       Customer
                     </th>
-
                     <th className="px-4 py-3 font-semibold text-gray-900">
                       Phone
                     </th>
-
                     <th className="px-4 py-3 font-semibold text-gray-900">
                       Email
                     </th>
-
                     <th className="px-4 py-3 font-semibold text-gray-900">
                       Outstanding
                     </th>
-
                     <th className="px-4 py-3 font-semibold text-gray-900">
                       Action
                     </th>
@@ -287,8 +294,7 @@ export default function CustomersPage() {
 
                 <tbody>
                   {customers.map((customer) => {
-                    const balance =
-                      balances[customer.id] ?? 0;
+                    const balance = balances[customer.id] ?? 0;
 
                     return (
                       <tr
@@ -298,19 +304,15 @@ export default function CustomersPage() {
                         <td className="px-4 py-3 font-medium text-gray-900">
                           {customer.name}
                         </td>
-
                         <td className="px-4 py-3 text-gray-700">
                           {customer.phone || "—"}
                         </td>
-
                         <td className="px-4 py-3 text-gray-700">
                           {customer.email || "—"}
                         </td>
-
                         <td className="px-4 py-3 font-medium">
                           ₹{balance.toFixed(2)}
                         </td>
-
                         <td className="px-4 py-3">
                           <Link
                             href={`/customers/${customer.id}`}
@@ -327,7 +329,6 @@ export default function CustomersPage() {
             </div>
           )}
         </section>
-      </div>
-    </main>
+    </div>
   );
 }

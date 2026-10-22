@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
-
-const BUSINESS_ID = "3b4fc147-7ea2-495f-a64e-878dfdabc158";
+import { useRouter } from "next/navigation";
 
 type Supplier = {
   id: string;
@@ -14,6 +14,8 @@ type Supplier = {
 };
 
 export default function SuppliersPage() {
+  const router = useRouter();
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -27,40 +29,50 @@ export default function SuppliersPage() {
   const [createMessage, setCreateMessage] = useState("");
   const [createError, setCreateError] = useState("");
 
-  async function loadSuppliers() {
+  const loadSuppliers = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await fetch(
-        `/api/suppliers?businessId=${BUSINESS_ID}`
-      );
+      const response = await fetch("/api/suppliers");
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error || "Failed to load suppliers"
-        );
+        throw new Error(data.error || "Failed to load suppliers");
       }
 
       setSuppliers(data.suppliers);
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load suppliers"
+        err instanceof Error ? err.message : "Failed to load suppliers"
       );
     } finally {
       setLoading(false);
     }
-  }
+  }, [router]);
 
   useEffect(() => {
-    loadSuppliers();
-  }, []);
+    let cancelled = false;
 
-  async function handleCreateSupplier(event: FormEvent) {
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled) {
+        void loadSuppliers();
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadSuppliers]);
+
+  async function handleCreateSupplier(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setCreateMessage("");
@@ -80,7 +92,6 @@ export default function SuppliersPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          businessId: BUSINESS_ID,
           name: name.trim(),
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
@@ -88,27 +99,27 @@ export default function SuppliersPage() {
         }),
       });
 
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error || "Failed to create supplier"
-        );
+        throw new Error(data.error || "Failed to create supplier");
       }
 
       setName("");
       setPhone("");
       setEmail("");
       setAddress("");
-
       setCreateMessage("Supplier created successfully");
 
       await loadSuppliers();
     } catch (err) {
       setCreateError(
-        err instanceof Error
-          ? err.message
-          : "Failed to create supplier"
+        err instanceof Error ? err.message : "Failed to create supplier"
       );
     } finally {
       setCreating(false);
@@ -117,99 +128,102 @@ export default function SuppliersPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen p-6">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-gray-400">
-            Loading suppliers...
-          </p>
-        </div>
-      </main>
+      <div className="space-y-6">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
+        <div className="shopflow-glass h-64 animate-pulse rounded-2xl" />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Suppliers
-          </h1>
+    <div className="space-y-8">
+      <div>
+        <p className="text-[10px] font-bold text-[var(--accent)]">
+          Procurement & Vendors
+        </p>
+        <h1 className="mt-2 text-[40px] leading-[1.1] tracking-[-0.03em] text-[var(--text-primary)]">
+          Suppliers
+        </h1>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          Manage suppliers, purchase agreements, and vendor contacts.
+        </p>
+      </div>
 
-          <p className="mt-2 text-gray-400">
-            Manage suppliers and their purchasing information.
-          </p>
-        </div>
-
-        <section className="mb-8 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold">
-            Add Supplier
-          </h2>
+      <section className="shopflow-glass rounded-3xl p-6">
+        <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">
+          Add Supplier
+        </h2>
 
           <form
             onSubmit={handleCreateSupplier}
             className="grid gap-4 md:grid-cols-2"
           >
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="supplier-name"
+                className="mb-1 block text-sm font-medium"
+              >
                 Name
               </label>
-
               <input
+                id="supplier-name"
                 type="text"
                 value={name}
-                onChange={(event) =>
-                  setName(event.target.value)
-                }
+                onChange={(event) => setName(event.target.value)}
                 placeholder="Supplier name"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+                required
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-gray-900"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="supplier-phone"
+                className="mb-1 block text-sm font-medium"
+              >
                 Phone
               </label>
-
               <input
+                id="supplier-phone"
                 type="text"
                 value={phone}
-                onChange={(event) =>
-                  setPhone(event.target.value)
-                }
+                onChange={(event) => setPhone(event.target.value)}
                 placeholder="Phone number"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-gray-900"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="supplier-email"
+                className="mb-1 block text-sm font-medium"
+              >
                 Email
               </label>
-
               <input
+                id="supplier-email"
                 type="email"
                 value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
+                onChange={(event) => setEmail(event.target.value)}
                 placeholder="Email address"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-gray-900"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label
+                htmlFor="supplier-address"
+                className="mb-1 block text-sm font-medium"
+              >
                 Address
               </label>
-
               <input
+                id="supplier-address"
                 type="text"
                 value={address}
-                onChange={(event) =>
-                  setAddress(event.target.value)
-                }
+                onChange={(event) => setAddress(event.target.value)}
                 placeholder="Supplier address"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900"
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-gray-900"
               />
             </div>
 
@@ -217,63 +231,43 @@ export default function SuppliersPage() {
               <button
                 type="submit"
                 disabled={creating}
-                className="rounded-md bg-black px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full bg-black px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {creating
-                  ? "Creating..."
-                  : "Add Supplier"}
+                {creating ? "Creating..." : "Add Supplier"}
               </button>
             </div>
           </form>
 
           {createMessage && (
-            <p className="mt-4 text-green-600">
-              {createMessage}
-            </p>
+            <p className="mt-4 text-green-600">{createMessage}</p>
           )}
 
           {createError && (
-            <p className="mt-4 text-red-600">
-              {createError}
-            </p>
+            <p className="mt-4 text-red-600">{createError}</p>
           )}
         </section>
 
         {error && (
-          <div className="mb-6 rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
+          <div className="mb-6 rounded-lg border bg-white p-6 text-gray-900">
             <p className="text-red-600">{error}</p>
           </div>
         )}
 
-        <section className="rounded-lg border bg-white p-6 text-gray-900 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold">
-            Supplier List
-          </h2>
+        <section className="rounded-lg border bg-white p-6 text-gray-900">
+          <h2 className="mb-4 text-2xl font-semibold">Supplier List</h2>
 
           {suppliers.length === 0 ? (
-            <p className="text-gray-600">
-              No suppliers found.
-            </p>
+            <p className="text-gray-600">No suppliers found.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-gray-200 text-left">
-                    <th className="px-4 py-3 font-semibold">
-                      Supplier
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      Phone
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      Email
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      Address
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      Action
-                    </th>
+                    <th className="px-4 py-3 font-semibold">Supplier</th>
+                    <th className="px-4 py-3 font-semibold">Phone</th>
+                    <th className="px-4 py-3 font-semibold">Email</th>
+                    <th className="px-4 py-3 font-semibold">Address</th>
+                    <th className="px-4 py-3 font-semibold">Action</th>
                   </tr>
                 </thead>
 
@@ -286,19 +280,15 @@ export default function SuppliersPage() {
                       <td className="px-4 py-3 font-medium">
                         {supplier.name}
                       </td>
-
                       <td className="px-4 py-3 text-gray-700">
                         {supplier.phone || "—"}
                       </td>
-
                       <td className="px-4 py-3 text-gray-700">
                         {supplier.email || "—"}
                       </td>
-
                       <td className="px-4 py-3 text-gray-700">
                         {supplier.address || "—"}
                       </td>
-
                       <td className="px-4 py-3">
                         <Link
                           href={`/suppliers/${supplier.id}`}
@@ -314,7 +304,6 @@ export default function SuppliersPage() {
             </div>
           )}
         </section>
-      </div>
-    </main>
+    </div>
   );
 }

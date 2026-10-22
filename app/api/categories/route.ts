@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+
+import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { CategoryService } from "@/app/server/services/category.service";
 import { createCategorySchema } from "@/app/server/validation/category.validation";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const user = await getCurrentUser();
 
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
 
@@ -55,9 +56,9 @@ export async function POST(request: NextRequest) {
     }
 
     const category = await CategoryService.createCategory(
-  user.businessId,
-  result.data
-);
+      user.businessId,
+      result.data
+    );
 
     return NextResponse.json({ category }, { status: 201 });
   } catch (error) {

@@ -54,33 +54,33 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 text-slate-900">
-      <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+    <main className="flex min-h-screen items-center justify-center bg-white px-4 py-12 text-[var(--text-primary)]">
+      <section className="w-full max-w-md rounded-3xl bg-[var(--surface-muted)] p-7 sm:p-10">
         <Link
           href="/"
-          className="text-sm font-semibold text-blue-700 hover:text-blue-800"
+          className="font-serif text-[26px] leading-none tracking-[-0.03em] text-[var(--text-primary)]"
         >
-          ← ShopFlow
+          ShopFlow
         </Link>
 
         <div className="mt-8">
-          <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+          <p className="text-[14px] text-[var(--text-secondary)]">
             Welcome back
           </p>
 
-          <h1 className="mt-2 text-3xl font-bold tracking-tight">
+          <h1 className="text-[40px] leading-[1.1] tracking-[-0.03em]">
             Sign in to ShopFlow
           </h1>
 
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Access your shop's business workspace.
+          <p className="mt-3 text-[15px] leading-6 text-[var(--text-secondary)]">
+            Access your shop&apos;s business workspace.
           </p>
         </div>
 
         {registered && (
           <div
             role="status"
-            className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+            className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
           >
             Registration successful. Sign in with your new account.
           </div>
@@ -90,7 +90,7 @@ function LoginForm() {
           <div>
             <label
               htmlFor="email"
-              className="mb-2 block text-sm font-medium"
+              className="mb-2 block text-[14px] font-medium"
             >
               Email address
             </label>
@@ -103,7 +103,7 @@ function LoginForm() {
               maxLength={254}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[16px] outline-none"
               placeholder="you@example.com"
             />
           </div>
@@ -111,7 +111,7 @@ function LoginForm() {
           <div>
             <label
               htmlFor="password"
-              className="mb-2 block text-sm font-medium"
+              className="mb-2 block text-[14px] font-medium"
             >
               Password
             </label>
@@ -124,7 +124,7 @@ function LoginForm() {
               maxLength={128}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[16px] outline-none"
               placeholder="Enter your password"
             />
           </div>
@@ -132,7 +132,7 @@ function LoginForm() {
           {error && (
             <div
               role="alert"
-              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
             >
               {error}
             </div>
@@ -141,17 +141,17 @@ function LoginForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="sf-btn w-full"
           >
             {submitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-600">
+        <p className="mt-6 text-center text-[15px] text-[var(--text-secondary)]">
           New to ShopFlow?{" "}
           <Link
             href="/register"
-            className="font-semibold text-blue-700 hover:text-blue-800"
+            className="font-medium text-[var(--text-primary)] underline underline-offset-4"
           >
             Create an account
           </Link>
@@ -165,8 +165,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-          <p className="text-sm text-slate-600">Loading sign-in page...</p>
+        <main className="flex min-h-screen items-center justify-center bg-white px-4">
+          <p className="text-sm text-[var(--text-secondary)]">Loading sign-in page...</p>
         </main>
       }
     >

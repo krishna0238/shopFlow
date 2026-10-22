@@ -55,14 +55,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const purchaseInvoice =
-      await PurchaseInvoiceService.createPurchaseInvoice(
-        user.businessId,
-        result.data.supplierId,
-        result.data.invoiceNumber,
-        result.data.invoiceDate,
-        result.data.totalAmount
-      );
+const purchaseInvoice =
+  await PurchaseInvoiceService.createPurchaseInvoice(
+    user.businessId,
+    result.data.supplierId,
+    result.data.invoiceNumber,
+    result.data.invoiceDate
+  );
 
     return NextResponse.json(
       { purchaseInvoice },

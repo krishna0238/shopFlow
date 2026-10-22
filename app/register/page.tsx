@@ -63,25 +63,25 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 text-slate-900">
-      <section className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+    <main className="flex min-h-screen items-center justify-center bg-white px-4 py-12 text-[var(--text-primary)]">
+      <section className="w-full max-w-lg rounded-3xl bg-[var(--surface-muted)] p-7 sm:p-10">
         <Link
           href="/"
-          className="text-sm font-semibold text-blue-700 hover:text-blue-800"
+          className="font-serif text-[26px] leading-none tracking-[-0.03em] text-[var(--text-primary)]"
         >
-          ← ShopFlow
+          ShopFlow
         </Link>
 
         <div className="mt-8">
-          <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+          <p className="text-[14px] text-[var(--text-secondary)]">
             Get started
           </p>
 
-          <h1 className="mt-2 text-3xl font-bold tracking-tight">
+          <h1 className="text-[40px] leading-[1.1] tracking-[-0.03em]">
             Create your ShopFlow account
           </h1>
 
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-[15px] leading-6 text-[var(--text-secondary)]">
             Set up your business workspace to manage your shop in one place.
           </p>
         </div>
@@ -90,7 +90,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="businessName"
-              className="mb-2 block text-sm font-medium"
+              className="mb-2 block text-[14px] font-medium"
             >
               Business name
             </label>
@@ -103,7 +103,7 @@ export default function RegisterPage() {
               maxLength={120}
               value={businessName}
               onChange={(event) => setBusinessName(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[16px] outline-none"
               placeholder="e.g. Sri Lakshmi Stores"
             />
           </div>
@@ -111,7 +111,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="ownerName"
-              className="mb-2 block text-sm font-medium"
+              className="mb-2 block text-[14px] font-medium"
             >
               Owner name
             </label>
@@ -124,7 +124,7 @@ export default function RegisterPage() {
               maxLength={120}
               value={ownerName}
               onChange={(event) => setOwnerName(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[16px] outline-none"
               placeholder="Your full name"
             />
           </div>
@@ -132,7 +132,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="ownerEmail"
-              className="mb-2 block text-sm font-medium"
+              className="mb-2 block text-[14px] font-medium"
             >
               Email address
             </label>
@@ -145,7 +145,7 @@ export default function RegisterPage() {
               maxLength={254}
               value={ownerEmail}
               onChange={(event) => setOwnerEmail(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[16px] outline-none"
               placeholder="you@example.com"
             />
           </div>
@@ -153,7 +153,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="password"
-              className="mb-2 block text-sm font-medium"
+              className="mb-2 block text-[14px] font-medium"
             >
               Password
             </label>
@@ -167,10 +167,10 @@ export default function RegisterPage() {
               maxLength={128}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-[16px] outline-none"
               placeholder="At least 8 characters"
             />
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-[13px] text-[var(--text-secondary)]">
               Use at least 8 characters.
             </p>
           </div>
@@ -178,7 +178,7 @@ export default function RegisterPage() {
           {error && (
             <div
               role="alert"
-              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
             >
               {error}
             </div>
@@ -187,17 +187,17 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="sf-btn w-full"
           >
             {submitting ? "Creating account..." : "Create account"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-600">
+        <p className="mt-6 text-center text-[15px] text-[var(--text-secondary)]">
           Already have an account?{" "}
           <Link
             href="/login"
-            className="font-semibold text-blue-700 hover:text-blue-800"
+            className="font-medium text-[var(--text-primary)] underline underline-offset-4"
           >
             Sign in
           </Link>
